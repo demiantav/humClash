@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "HumClash",
+    "slug": "humclash",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "humclash",
+    "plugins": ["expo-router"],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "HumClash necesita el micrófono para que tararees canciones a tu rival."
+      },
+      "bundleIdentifier": "com.humclash.app"
+    },
+    "android": {
+      "permissions": ["RECORD_AUDIO", "INTERNET", "MODIFY_AUDIO_SETTINGS"],
+      "adaptiveIcon": {
+        "backgroundColor": "#1A0A2E",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.humclash.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
