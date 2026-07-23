@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { Song } from "../../../shared/types";
 import { OptionButton } from "./OptionButton";
 import { Button } from "../../../shared/components/Button";
+import { RemoteAudioStatus } from "../../voice-stream/AudioIndicator";
 
 interface GuesserViewProps {
   options: Song[];
@@ -24,6 +25,9 @@ interface GuesserViewProps {
   opponentNickname: string;
   onSubmitGuess: (songId: string) => void;
   onRequestRehum: () => void;
+  remoteAudioLevel: number;
+  isAudioActive: boolean;
+  agoraError: string | null;
 }
 
 export function GuesserView({
@@ -39,6 +43,9 @@ export function GuesserView({
   opponentNickname,
   onSubmitGuess,
   onRequestRehum,
+  remoteAudioLevel,
+  isAudioActive,
+  agoraError,
 }: GuesserViewProps) {
   const timerRatio = timeLimit > 0 ? timeLeft / timeLimit : 1;
 
@@ -62,6 +69,11 @@ export function GuesserView({
         <Text style={styles.listeningText}>
           Escuchando a {opponentNickname}...
         </Text>
+        <RemoteAudioStatus
+          nickname={opponentNickname}
+          isActive={isAudioActive}
+          error={agoraError}
+        />
       </View>
 
       <View style={styles.optionsArea}>

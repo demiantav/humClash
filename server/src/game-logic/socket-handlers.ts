@@ -2,6 +2,7 @@ import { Server, Socket } from "socket.io";
 import { RoomManager } from "../rooms/RoomManager.js";
 import { GameSession } from "./GameSession.js";
 import { TurnManager } from "./TurnManager.js";
+import { generateAgoraToken } from "./AgoraTokenGenerator.js";
 import { addReport } from "../moderation/ReportHandler.js";
 
 const gameSessions = new Map<string, GameSession>();
@@ -19,8 +20,15 @@ function createSession(roomManager: RoomManager, roomCode: string, io: Server): 
     turnManager,
     (event, data) => io.to(roomCode).emit(event, data),
     (playerId, event, data) => io.to(playerId).emit(event, data),
+    generateAgoraToken,
   );
   gameSessions.set(roomCode, session);
+
+  const token0 = generateAgoraToken(roomCode, 0, "publisher");
+  const token1 = generateAgoraToken(roomCode, 1, "subscriber");
+  io.to(room.players[0].socketId).emit("agora_token", { token: token0.token, channel: roomCode, uid: 0, role: "publisher" });
+  io.to(room.players[1].socketId).emit("agora_token", { token: token1.token, channel: roomCode, uid: 1, role: "subscriber" });
+
   return session;
 }
 
@@ -71,6 +79,23 @@ export function registerGameHandlers(
   socket: Socket,
   roomManager: RoomManager,
 ) {
+  socket.on("request_agora_token", ({ roomCode }: { roomCode: string }) => {
+    const room = roomManager.getRoom(roomCode);
+    if (!room) return;
+
+    const playerIndex = room.players.findIndex((p) => p.id === socket.id);
+    const uid = playerIndex >= 0 ? playerIndex : 0;
+    const role = uid === 0 ? ("publisher" as const) : ("subscriber" as const);
+    const result = generateAgoraToken(roomCode, uid, role);
+
+    socket.emit("agora_token", {
+      token: result.token,
+      channel: roomCode,
+      uid,
+      role,
+    });
+  });
+
   socket.on("start_humming", ({ roomCode }: { roomCode: string }) => {
     const session = getSession(roomCode);
     if (!session) return;

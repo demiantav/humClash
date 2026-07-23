@@ -20,6 +20,10 @@ interface HummerViewProps {
   onStartHumming: () => void;
   roundNumber: number;
   opponentNickname: string;
+  isMuted: boolean;
+  isSpeaking: boolean;
+  agoraError: string | null;
+  onToggleMute: () => void;
 }
 
 export function HummerView({
@@ -29,6 +33,10 @@ export function HummerView({
   onStartHumming,
   roundNumber,
   opponentNickname,
+  isMuted,
+  isSpeaking,
+  agoraError,
+  onToggleMute,
 }: HummerViewProps) {
   const [hasStarted, setHasStarted] = useState(false);
   const songScale = useSharedValue(0.5);
@@ -98,11 +106,25 @@ export function HummerView({
             </Button>
           </View>
         ) : (
-          <Animated.View style={[styles.micIndicator, pulseStyle]}>
-            <Text style={styles.micIcon}>🎤</Text>
-            <Text style={styles.micText}>Tarareando...</Text>
-            <Text style={styles.micSubtext}>Tu rival te está escuchando</Text>
-          </Animated.View>
+          <View style={styles.micArea}>
+            <Animated.View style={[styles.micIndicator, pulseStyle]}>
+              <Text style={styles.micIcon}>{isMuted ? "🔇" : isSpeaking ? "🎤" : "🎤"}</Text>
+              <Text style={styles.micText}>
+                {isMuted ? "Muteado" : isSpeaking ? "Tarareando..." : "Tarareando..."}
+              </Text>
+              <Text style={styles.micSubtext}>
+                {isMuted ? "Tu rival no te escucha" : "Tu rival te está escuchando"}
+              </Text>
+            </Animated.View>
+            <Button variant="ghost" size="sm" onPress={onToggleMute}>
+              <Text style={styles.muteBtnText}>
+                {isMuted ? "Activar mic" : "Silenciar mic"}
+              </Text>
+            </Button>
+            {agoraError && (
+              <Text style={styles.agoraError}>{agoraError}</Text>
+            )}
+          </View>
         )}
 
         <View style={styles.timerSection}>
@@ -182,6 +204,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  micArea: {
+    alignItems: "center",
+    gap: 12,
+  },
   micIcon: {
     fontSize: 64,
   },
@@ -193,6 +219,15 @@ const styles = StyleSheet.create({
   micSubtext: {
     color: "#666",
     fontSize: 14,
+  },
+  muteBtnText: {
+    color: "#A78BFA",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  agoraError: {
+    color: "#FF6B6B",
+    fontSize: 12,
   },
   timerSection: {
     alignItems: "center",

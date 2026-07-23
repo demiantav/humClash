@@ -15,6 +15,7 @@ import { CountdownOverlay } from "../src/features/game-round/components/Countdow
 import { RoleBackground } from "../src/features/game-round/components/RoleBackground";
 import { useScreenShake } from "../src/features/game-round/animations/screenShake";
 import { MuteButton, ReportButton } from "../src/features/moderation/components/MuteButton";
+import { useAgora } from "../src/features/voice-stream/hooks/useAgora";
 
 export default function GameScreen() {
   const { roomCode, nickname } = useLocalSearchParams<{
@@ -23,6 +24,7 @@ export default function GameScreen() {
   }>();
 
   const game = useGameRound(String(roomCode ?? ""));
+  const agora = useAgora(String(roomCode ?? ""), game.myRole);
   const { animatedStyle: shakeStyle, trigger: shake } = useScreenShake();
   const [showCountdown, setShowCountdown] = useState(false);
   const [showTransition, setShowTransition] = useState("");
@@ -128,6 +130,10 @@ export default function GameScreen() {
                 onStartHumming={game.startHumming}
                 roundNumber={game.currentRound}
                 opponentNickname={game.opponentNickname}
+                isMuted={agora.isMuted}
+                isSpeaking={agora.isSpeaking}
+                agoraError={agora.error}
+                onToggleMute={agora.toggleMute}
               />
             ) : game.myRole === "guesser" ? (
               <GuesserView
@@ -143,6 +149,9 @@ export default function GameScreen() {
                 opponentNickname={game.opponentNickname}
                 onSubmitGuess={game.submitGuess}
                 onRequestRehum={game.requestRehum}
+                remoteAudioLevel={agora.remoteAudioLevel}
+                isAudioActive={agora.isJoined && !agora.isMuted}
+                agoraError={agora.error}
               />
             ) : (
               <View style={styles.waiting}>

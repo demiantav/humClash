@@ -8,6 +8,12 @@ interface PlayerInfo {
   nickname: string;
 }
 
+type TokenGenerator = (
+  channelName: string,
+  uid: number,
+  role: "publisher" | "subscriber",
+) => { token: string; appId: string };
+
 export class GameSession {
   roomCode: string;
   phase: GamePhase;
@@ -24,6 +30,7 @@ export class GameSession {
   private guessPhaseStarted: boolean = false;
   private guessPhaseStartTime: number = 0;
   private bothRequestedRematch: Set<string> = new Set();
+  private generateToken: TokenGenerator;
 
   constructor(
     roomCode: string,
@@ -31,6 +38,7 @@ export class GameSession {
     turnManager: TurnManager,
     onEmit: (event: string, data: any) => void,
     onEmitTo: (playerId: string, event: string, data: any) => void,
+    generateToken: TokenGenerator,
   ) {
     this.roomCode = roomCode;
     this.players_ = players;
@@ -44,6 +52,7 @@ export class GameSession {
     this.turnManager = turnManager;
     this.onEmit = onEmit;
     this.onEmitTo = onEmitTo;
+    this.generateToken = generateToken;
   }
 
   get players(): PlayerInfo[] {
@@ -117,6 +126,12 @@ export class GameSession {
 
     const hummerId = this.getHummerId();
     const guesserId = this.getGuesserId();
+
+    const hummerToken = this.generateToken(this.roomCode, 0, "publisher");
+    const guesserToken = this.generateToken(this.roomCode, 1, "subscriber");
+
+    this.emitTo(hummerId, "agora_token", { token: hummerToken.token, channel: this.roomCode, uid: 0, role: "publisher" });
+    this.emitTo(guesserId, "agora_token", { token: guesserToken.token, channel: this.roomCode, uid: 1, role: "subscriber" });
 
     this.emitTo(hummerId, "new_round", {
       roundNumber: this.currentRound,
