@@ -1,10 +1,11 @@
 import { Server, Socket } from "socket.io";
 import { RoomManager } from "./RoomManager.js";
+import { notifyGameStart } from "../game-logic/socket-handlers.js";
 
 export function registerRoomHandlers(
   io: Server,
   socket: Socket,
-  roomManager: RoomManager
+  roomManager: RoomManager,
 ) {
   socket.on("create_room", ({ nickname }: { nickname: string }, callback) => {
     try {
@@ -17,27 +18,39 @@ export function registerRoomHandlers(
     }
   });
 
-  socket.on("join_room", ({ roomCode, nickname }: { roomCode: string; nickname: string }, callback) => {
-    try {
-      const room = roomManager.joinRoom(roomCode, socket.id, nickname);
-      socket.join(roomCode);
-      callback({ success: true, room });
-      socket.to(roomCode).emit("room_joined", { room });
-      console.log(`[room] ${roomCode} — ${nickname} joined`);
-    } catch (err: any) {
-      const message = err.message === "room_not_found"
-        ? "El código no existe"
-        : err.message === "room_full"
-        ? "La sala está llena"
-        : "Error al unirse";
-      callback({ success: false, error: message });
-    }
-  });
+  socket.on(
+    "join_room",
+    (
+      { roomCode, nickname }: { roomCode: string; nickname: string },
+      callback,
+    ) => {
+      try {
+        const room = roomManager.joinRoom(roomCode, socket.id, nickname);
+        socket.join(roomCode);
+        callback({ success: true, room });
+
+        socket.to(roomCode).emit("room_joined", { room });
+        console.log(`[room] ${roomCode} — ${nickname} joined`);
+      } catch (err: any) {
+        const message =
+          err.message === "room_not_found"
+            ? "El código no existe"
+            : err.message === "room_full"
+              ? "La sala está llena"
+              : "Error al unirse";
+        callback({ success: false, error: message });
+      }
+    },
+  );
 
   socket.on("player_ready", ({ roomCode }: { roomCode: string }) => {
     const room = roomManager.setPlayerReady(socket.id);
     if (room) {
       io.to(room.code).emit("player_ready_update", { room });
+
+      if (roomManager.areAllPlayersReady(room.code)) {
+        setTimeout(() => notifyGameStart(io, roomManager, room.code), 300);
+      }
     }
   });
 
@@ -47,7 +60,10 @@ export function registerRoomHandlers(
     roomManager.handleDisconnect(socket.id);
     if (opponentId) {
       io.to(opponentId).emit("player_disconnected", {
-        disconnectedPlayer: { id: socket.id, nickname: roomManager.getPlayerNickname(socket.id) },
+        disconnectedPlayer: {
+          id: socket.id,
+          nickname: roomManager.getPlayerNickname(socket.id),
+        },
       });
     }
   });

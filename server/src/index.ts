@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { RoomManager } from "./rooms/RoomManager.js";
-import { registerGameHandlers } from "./game-logic/socket-handlers.js";
+import { registerGameHandlers, handleGameDisconnect } from "./game-logic/socket-handlers.js";
 import { registerRoomHandlers } from "./rooms/socket-handlers.js";
 import { rateLimiter } from "./security/rateLimiter.js";
 
@@ -38,15 +38,8 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", (reason) => {
     console.log(`[disconnect] ${socket.id} — ${reason}`);
+    handleGameDisconnect(io, socket.id, roomManager);
     roomManager.handleDisconnect(socket.id);
-  });
-
-  socket.on("disconnecting", () => {
-    for (const roomCode of socket.rooms) {
-      if (roomCode !== socket.id) {
-        roomManager.handleDisconnect(socket.id);
-      }
-    }
   });
 });
 

@@ -134,3 +134,26 @@ Al abrir una sesión nueva: leer este archivo + `AGENTS.md` antes de tocar códi
 6. Elegir assets de sonido (Mixkit o similar, libres de royalty).
 
 ---
+
+## 2026-07-23 — Fase 0 + Fase 1 completadas
+
+**Fase 0 — Setup:**
+- Proyecto Expo (SDK 57, TypeScript 6) con Expo Router, Zustand, Reanimated 4.5.
+- Backend Node.js + Socket.io con RoomManager, SongBank (30 canciones), Scoring, Rate Limiter.
+- 47 archivos en estructura Screaming Architecture.
+- 6 pantallas base: Home, CreateRoom (código OTP 6 celdas), JoinRoom, Lobby, Game, Results.
+- 2 stores Zustand: useRoomStore, useGameStore.
+- Socket.io cliente + servidor verificados con ping/pong.
+
+**Fase 1 — Backend Core:**
+- GameSession.ts: state machine (lobby → countdown → round_active → round_result → loop 5x → game_over).
+- TurnManager.ts: timers con serverTimestamp en timer_sync para sync cliente (±200ms).
+- Rondas con fase hummer (20s) + guesser (15s). Hummer ve canción, guesser ve 4 opciones.
+- Eventos: countdown_tick (3,2,1,0), start_humming, request_rehum, humming_started.
+- Auto-start: ambos ready en lobby → game_starting automático con countdown.
+- Revancha: request_rematch × 2 → rematch_accepted → nuevo game_starting.
+- Rate limiter arreglado (bug: mezclaba timestamps de todos los eventos).
+- 32/32 tests de integración pasando (npm run test).
+- Edge case pendiente: player_disconnected durante countdown (Fase 7).
+
+**Branch:** feature/kickoff-setup.
