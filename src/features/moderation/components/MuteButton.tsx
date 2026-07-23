@@ -1,6 +1,7 @@
 import { Pressable, Text, StyleSheet } from "react-native";
 import { useState } from "react";
 import * as Haptics from "expo-haptics";
+import { socket } from "../../../shared/lib/socket-client";
 
 interface MuteButtonProps {
   roomCode: string;
@@ -33,7 +34,6 @@ interface ReportButtonProps {
 
 export function ReportButton({ roomCode, targetNickname: _targetNickname }: ReportButtonProps) {
   const [reported, setReported] = useState(false);
-  const { socket } = require("../../shared/lib/socket-client");
 
   const handleReport = () => {
     if (reported) return;
