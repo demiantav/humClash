@@ -1,6 +1,20 @@
 import { View, Text, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, router } from "expo-router";
+import { useEffect, useState } from "react";
+import Animated from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
+import { socket } from "../src/shared/lib/socket-client";
+import { useGameRound } from "../src/features/game-round/hooks/useGameRound";
+import { TimerBar } from "../src/features/game-round/components/TimerBar";
+import { HummerView } from "../src/features/game-round/components/HummerView";
+import { GuesserView } from "../src/features/game-round/components/GuesserView";
+import { ComboCounter } from "../src/features/game-round/components/ComboCounter";
+import { RoundProgressDots } from "../src/features/game-round/components/RoundProgressDots";
+import { CountdownOverlay } from "../src/features/game-round/components/CountdownOverlay";
+import { RoleBackground } from "../src/features/game-round/components/RoleBackground";
+import { useScreenShake } from "../src/features/game-round/animations/screenShake";
+import { MuteButton, ReportButton } from "../src/features/moderation/components/MuteButton";
 
 export default function GameScreen() {
   const { roomCode, nickname } = useLocalSearchParams<{
@@ -8,39 +22,182 @@ export default function GameScreen() {
     nickname: string;
   }>();
 
+  const game = useGameRound(String(roomCode ?? ""));
+  const { animatedStyle: shakeStyle, trigger: shake } = useScreenShake();
+  const [showCountdown, setShowCountdown] = useState(false);
+  const [showTransition, setShowTransition] = useState("");
+  const [pastResults, setPastResults] = useState<(boolean | null)[]>([]);
+
+  useEffect(() => {
+    if (game.phase === "countdown" || game.phase === "lobby") {
+      setShowCountdown(true);
+    } else {
+      setShowCountdown(false);
+    }
+  }, [game.phase, game.currentRound]);
+
+  useEffect(() => {
+    if (game.lastGuessCorrect === true) {
+      shake(5);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else if (game.lastGuessCorrect === false) {
+      shake(8);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }, [game.lastGuessCorrect, game.currentRound]);
+
+  useEffect(() => {
+    if (game.roundResult) {
+      const newResults = [...pastResults, game.roundResult.correct];
+      setPastResults(newResults);
+    }
+  }, [game.roundResult]);
+
+  useEffect(() => {
+    if (game.phase === "game_over" && game.gameOver) {
+      const winner = game.gameOver.winner;
+      if (winner) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      setTimeout(() => {
+        router.replace({
+          pathname: "/results",
+          params: {
+            roomCode,
+            nickname,
+            winnerId: winner?.id ?? "",
+            winnerName: winner?.nickname ?? "Empate",
+          },
+        });
+      }, 1500);
+    }
+  }, [game.phase, game.gameOver]);
+
+  if (game.phase === "lobby" || game.phase === "countdown") {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <CountdownOverlay onFinish={() => setShowCountdown(false)} />
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Juego</Text>
-      <Text style={styles.info}>Sala: {roomCode}</Text>
-      <Text style={styles.info}>Jugador: {nickname}</Text>
-      <Text style={styles.placeholder}>El loop de juego se implementa en Fase 3</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <RoleBackground role={game.myRole}>
+        <Animated.View style={[styles.inner, shakeStyle]}>
+          <View style={styles.hud}>
+            <View style={styles.hudTop}>
+              <View style={styles.hudLeft}>
+                <MuteButton
+                  roomCode={String(roomCode ?? "")}
+                  targetNickname={game.opponentNickname}
+                />
+                <ReportButton
+                  roomCode={String(roomCode ?? "")}
+                  targetNickname={game.opponentNickname}
+                />
+              </View>
+              <ComboCounter combo={game.comboCount} />
+              <View style={styles.hudRight}>
+                <Text style={styles.roleLabel}>
+                  {game.myRole === "hummer" ? "Tarareás" : "Adivinás"}
+                </Text>
+              </View>
+            </View>
+
+            <TimerBar
+              timeLeft={game.timeLeft}
+              timeLimit={game.timeLeft > 0 ? game.timeLeft + 1 : 1}
+              secondsElapsed={game.timeLeft}
+              serverTimestamp={Date.now()}
+            />
+
+            <RoundProgressDots
+              currentRound={game.currentRound}
+              totalRounds={game.totalRounds}
+              roundResults={pastResults}
+            />
+          </View>
+
+          <View style={styles.gameArea}>
+            {game.myRole === "hummer" && game.currentSong ? (
+              <HummerView
+                song={game.currentSong}
+                timeLeft={game.timeLeft}
+                timeLimit={game.timeLeft > 0 ? game.timeLeft + 1 : 20}
+                onStartHumming={game.startHumming}
+                roundNumber={game.currentRound}
+                opponentNickname={game.opponentNickname}
+              />
+            ) : game.myRole === "guesser" ? (
+              <GuesserView
+                options={game.options}
+                timeLeft={game.timeLeft}
+                timeLimit={15}
+                hintVisible={game.hintVisible}
+                currentSong={game.currentSong}
+                rehumAvailable={game.rehumAvailable}
+                hasSubmitted={game.hasSubmitted}
+                lastGuess={game.lastGuessCorrect === true ? "correct" : game.lastGuessCorrect === false ? "incorrect" : null}
+                roundNumber={game.currentRound}
+                opponentNickname={game.opponentNickname}
+                onSubmitGuess={game.submitGuess}
+                onRequestRehum={game.requestRehum}
+              />
+            ) : (
+              <View style={styles.waiting}>
+                <Text style={styles.waitingText}>Preparando ronda...</Text>
+              </View>
+            )}
+          </View>
+        </Animated.View>
+      </RoleBackground>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: "#0F0A1A",
+  },
+  inner: {
+    flex: 1,
+  },
+  hud: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 12,
+  },
+  hudTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  hudLeft: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  hudRight: {
+    alignItems: "flex-end",
+  },
+  roleLabel: {
+    color: "#A78BFA",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  gameArea: {
+    flex: 1,
+  },
+  waiting: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 24,
   },
-  title: {
-    fontSize: 36,
-    fontWeight: "900",
-    color: "#FFD700",
-    marginBottom: 16,
-  },
-  info: {
-    fontSize: 16,
-    color: "#A78BFA",
-    marginBottom: 8,
-  },
-  placeholder: {
-    marginTop: 32,
-    color: "#888",
-    fontSize: 14,
-    fontStyle: "italic",
+  waitingText: {
+    color: "#666",
+    fontSize: 18,
   },
 });

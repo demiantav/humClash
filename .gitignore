@@ -39,3 +39,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# AI agent skill files
+.claude/
+.gemini/
+.opencode/
