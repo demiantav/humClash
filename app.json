@@ -13,6 +13,7 @@
       "expo-sharing"
     ],
     "ios": {
+      "newArchEnabled": true,
       "supportsTablet": true,
       "infoPlist": {
         "NSMicrophoneUsageDescription": "HumClash necesita el micrófono para que tararees canciones a tu rival."
@@ -20,6 +21,7 @@
       "bundleIdentifier": "com.humclash.app"
     },
     "android": {
+      "newArchEnabled": true,
       "permissions": [
         "RECORD_AUDIO",
         "INTERNET",
