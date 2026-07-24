@@ -191,7 +191,47 @@ haya versión estable para deploy.
 
 ---
 
-## 2026-07-24 — Configuración de EAS Build y testing en dispositivo
+## 2026-07-25 — Fix masivo de bugs de audio y timer
+
+**Branch:** `feature/matchmaking-salidas-ui` (7 commits nuevos).
+
+**Avances de la sesión:**
+
+- **Fix del bug de navegación:** `useGuestAuth` usaba `useState` local en cada componente →
+  el layout y el onboarding no compartían el estado del apodo. Solución: migrar a Zustand
+  store (`src/store/useAuthStore.ts`). Loop "elegir apodo → cómo se juega → elegir apodo"
+  resuelto.
+- **Fix del timer:** `timeLimit` y `serverTimestamp` no estaban en el store de Zustand.
+  El `TimerBar` recibía `game.timeLeft` como `secondsElapsed` y `Date.now()` como
+  `serverTimestamp` (cliente, no servidor). Solución: agregar `timeLimit` y
+  `serverTimestamp` a `useGameStore`, pasar valores correctos desde `timer_sync`.
+- **Auditoría completa de audio (21 bugs encontrados, 14 arreglados):**
+  - **P0 (audio):** credenciales de Agora configuradas en `.env` y `server/.env`,
+    orden de eventos `new_round` antes que `agora_token` para evitar stale closure,
+    handler duplicado `request_agora_token` eliminado, mute determinado por `data.role`.
+  - **P1 (timer/roles):** `setTimeLimit` en `onNewRound`, `CountdownOverlay` sincronizado
+    con `countdown_tick` del servidor, `setClientRole()` sin destruir engine en cambio
+    de rol, uid por índice de jugador, `isAudioActive = isJoined`.
+  - **P2 (UX):** `startTimer` movido a `startGuessing()`, timeLimit consistente,
+    `MuteButton` conectado a `muteRemoteAudioStream`, handler de `humming_started`.
+- **EAS builds:** problema de `typescript@5.9.3` en lock file — npm 11 no lo trackea
+  como npm 10. Solución: regenerar lock file con npm 10.
+- **`expo-av` eliminado temporalmente** por incompatibilidad binaria con RN 0.86 (JSI
+  symbol mismatch en `libexpo-av.so`). Se re-agrega en Fase 6 cuando Expo lo arregle.
+- **Guía de estudio:** creado `GUIA_DE_ESTUDIO.md` con explicación de cada tecnología,
+  estructura de carpetas, flujo de datos, ruta de aprendizaje y glosario.
+- **`server/.expo` fantasmal:** al ejecutar `npx expo start` desde `server/` se creó
+  una carpeta `.expo` que Metro usaba como raíz del proyecto. Borrada con `rm -rf`.
+
+**Próxima sesión:**
+1. Verificar que `npm run server` levanta con credenciales de Agora.
+2. Testear partida completa con audio: emulador + celu físico.
+3. Mergear `feature/matchmaking-salidas-ui` a `develop` (7 commits acumulados).
+4. Crear nueva rama `feature/results-screen` para Fase 5 — Resultados.
+5. Fase 5: pantalla de resultados con confetti Reanimated, tabla de puntajes, revancha.
+
+**Branch:** `feature/matchmaking-salidas-ui`.
+
 
 **Avances de la sesión:**
 
