@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet, TextInput, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
 import { useState } from "react";
 import { useGuestAuth } from "../src/features/auth-guest/hooks/useGuestAuth";
 import { Button } from "../src/shared/components/Button";
@@ -15,7 +14,6 @@ export default function OnboardingScreen() {
       setStep(1);
     } else if (step === 1) {
       await setNickname(name.trim());
-      router.replace("/");
     }
   };
 

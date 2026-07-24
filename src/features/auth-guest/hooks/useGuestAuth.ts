@@ -1,27 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const NICKNAME_KEY = "humclash_nickname";
+import { useEffect } from "react";
+import { useAuthStore } from "../../../store/useAuthStore";
 
 export function useGuestAuth() {
-  const [nickname, setNicknameState] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const nickname = useAuthStore((s) => s.nickname);
+  const loading = useAuthStore((s) => s.loading);
+  const hydrate = useAuthStore((s) => s.hydrate);
+  const setNickname = useAuthStore((s) => s.setNickname);
+  const clearNickname = useAuthStore((s) => s.clearNickname);
 
   useEffect(() => {
-    AsyncStorage.getItem(NICKNAME_KEY).then((stored) => {
-      setNicknameState(stored);
-      setLoading(false);
-    });
-  }, []);
-
-  const setNickname = useCallback(async (name: string) => {
-    await AsyncStorage.setItem(NICKNAME_KEY, name);
-    setNicknameState(name);
-  }, []);
-
-  const clearNickname = useCallback(async () => {
-    await AsyncStorage.removeItem(NICKNAME_KEY);
-    setNicknameState(null);
+    hydrate();
   }, []);
 
   return { nickname, setNickname, clearNickname, loading, hasNickname: nickname !== null };
