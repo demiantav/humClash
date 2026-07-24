@@ -120,7 +120,13 @@ async function main() {
 
   // --- Test 4: timer_sync ---
   console.log("\nTest 4: timer_sync con serverTimestamp");
-  const sync = await waitFor(guesser.socket === p1 ? p1 : p2, "timer_sync", 3000);
+  const guessSocket = guesser.yourRole === r1.yourRole ? p1 : p2;
+  const hummerSocket = hummer.yourRole === r1.yourRole ? p1 : p2;
+  hummerSocket.emit("start_humming", { roomCode });
+  const hummingStarted = await waitFor(guessSocket, "humming_started", 2000);
+  assert(hummingStarted.message.length > 0, "humming_started recibido");
+
+  const sync = await waitFor(guessSocket, "timer_sync", 3000);
   assert(typeof sync.secondsElapsed === "number", "secondsElapsed es number");
   assert(sync.timeLimit === 15, "timeLimit = 15");
   assert(typeof sync.serverTimestamp === "number", "serverTimestamp es number");
@@ -128,11 +134,6 @@ async function main() {
 
   // --- Test 5: submit_guess → round_result ---
   console.log("\nTest 5: submit_guess — cálculo de puntuación");
-  const guessSocket = guesser.yourRole === r1.yourRole ? p1 : p2;
-  guessSocket.emit("start_humming", { roomCode });
-  const hummingStarted = await waitFor(guessSocket, "humming_started", 2000);
-  assert(hummingStarted.message.length > 0, "humming_started recibido");
-
   const guessId = guesser.options[0].id;
   guessSocket.emit("submit_guess", { roomCode, songId: guessId });
 
@@ -146,13 +147,19 @@ async function main() {
 
   // Auto-submit guesses for remaining rounds (rounds 2-5)
   p1.on("new_round", (d: any) => {
+    if (d.yourRole === "hummer") {
+      setTimeout(() => p1.emit("start_humming", { roomCode }), 100);
+    }
     if (d.yourRole === "guesser" && d.options?.length) {
-      setTimeout(() => p1.emit("submit_guess", { roomCode, songId: d.options[0].id }), 200);
+      setTimeout(() => p1.emit("submit_guess", { roomCode, songId: d.options[0].id }), 300);
     }
   });
   p2.on("new_round", (d: any) => {
+    if (d.yourRole === "hummer") {
+      setTimeout(() => p2.emit("start_humming", { roomCode }), 100);
+    }
     if (d.yourRole === "guesser" && d.options?.length) {
-      setTimeout(() => p2.emit("submit_guess", { roomCode, songId: d.options[0].id }), 200);
+      setTimeout(() => p2.emit("submit_guess", { roomCode, songId: d.options[0].id }), 300);
     }
   });
 

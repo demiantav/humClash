@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx --env-file=.env watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/src/index.js",
+    "start": "node --env-file=.env dist/src/index.js",
     "lint": "tsc --noEmit",
-    "test": "tsx src/__tests__/run.ts"
+    "test": "tsx --env-file=.env src/__tests__/run.ts"
   },
   "dependencies": {
     "agora-access-token": "^2.0.4",

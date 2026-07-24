@@ -6,50 +6,53 @@ import Animated, {
   withTiming,
   withSequence,
 } from "react-native-reanimated";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import * as Haptics from "expo-haptics";
 
 interface CountdownOverlayProps {
   onFinish: () => void;
+  tick?: number | null;
 }
 
-export function CountdownOverlay({ onFinish }: CountdownOverlayProps) {
-  const [count, setCount] = useState(3);
+const TICK_DURATION = 800;
+
+export function CountdownOverlay({ onFinish, tick }: CountdownOverlayProps) {
+  const [display, setDisplay] = useState<string>("...");
   const scale = useSharedValue(0.3);
   const opacity = useSharedValue(0);
+  const prevRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const tick = (n: number) => {
-      if (n < 0) {
-        onFinish();
-        return;
-      }
-      setCount(n);
-      scale.value = 0.3;
-      scale.value = withSpring(1, { stiffness: 300, damping: 10 });
+    if (tick === undefined || tick === null) return;
+    if (tick === prevRef.current) return;
+    prevRef.current = tick;
+
+    if (tick <= 0) {
+      setDisplay("YA");
+      scale.value = withSpring(1.5, { stiffness: 300, damping: 10 });
       opacity.value = withSequence(
         withTiming(1, { duration: 100 }),
-        withTiming(0.6, { duration: 600 }),
+        withTiming(0, { duration: 500 }),
       );
+      setTimeout(() => onFinish(), 600);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return;
+    }
 
-      if (n === 3 || n === 2) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      } else if (n === 1) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      }
-    };
+    setDisplay(String(tick));
+    scale.value = 0.3;
+    scale.value = withSpring(1, { stiffness: 300, damping: 10 });
+    opacity.value = withSequence(
+      withTiming(1, { duration: 100 }),
+      withTiming(0.6, { duration: TICK_DURATION - 100 }),
+    );
 
-    tick(3);
-    const t1 = setTimeout(() => tick(2), 800);
-    const t2 = setTimeout(() => tick(1), 1600);
-    const t3 = setTimeout(() => tick(0), 2400);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-  }, []);
+    if (tick === 3 || tick === 2) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else if (tick === 1) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    }
+  }, [tick]);
 
   const numberStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -60,7 +63,7 @@ export function CountdownOverlay({ onFinish }: CountdownOverlayProps) {
     <View style={styles.overlay}>
       <Text style={styles.label}>¡Preparate!</Text>
       <Animated.Text style={[styles.number, numberStyle]}>
-        {count > 0 ? count : "YA"}
+        {display}
       </Animated.Text>
     </View>
   );

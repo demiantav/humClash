@@ -1,19 +1,26 @@
 import { Pressable, Text, StyleSheet } from "react-native";
 import { useState } from "react";
 import * as Haptics from "expo-haptics";
-import { socket } from "../../../shared/lib/socket-client";
 
 interface MuteButtonProps {
   roomCode: string;
   targetNickname: string;
+  onMuteRemote: () => void;
+  onUnmuteRemote: () => void;
 }
 
-export function MuteButton({ roomCode: _roomCode, targetNickname: _targetNickname }: MuteButtonProps) {
+export function MuteButton({ roomCode: _roomCode, targetNickname: _targetNickname, onMuteRemote, onUnmuteRemote }: MuteButtonProps) {
   const [muted, setMuted] = useState(false);
 
   const handleToggle = () => {
-    setMuted(!muted);
+    const next = !muted;
+    setMuted(next);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (next) {
+      onMuteRemote();
+    } else {
+      onUnmuteRemote();
+    }
   };
 
   return (
@@ -30,16 +37,17 @@ export function MuteButton({ roomCode: _roomCode, targetNickname: _targetNicknam
 interface ReportButtonProps {
   roomCode: string;
   targetNickname: string;
+  onReport?: () => void;
 }
 
-export function ReportButton({ roomCode, targetNickname: _targetNickname }: ReportButtonProps) {
+export function ReportButton({ roomCode, targetNickname: _targetNickname, onReport }: ReportButtonProps) {
   const [reported, setReported] = useState(false);
 
   const handleReport = () => {
     if (reported) return;
     setReported(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    socket.emit("report_player", { roomCode, reason: "other" } as any);
+    onReport?.();
   };
 
   return (

@@ -127,11 +127,10 @@ export class GameSession {
     const hummerId = this.getHummerId();
     const guesserId = this.getGuesserId();
 
-    const hummerToken = this.generateToken(this.roomCode, 0, "publisher");
-    const guesserToken = this.generateToken(this.roomCode, 1, "subscriber");
-
-    this.emitTo(hummerId, "agora_token", { token: hummerToken.token, channel: this.roomCode, uid: 0, role: "publisher" });
-    this.emitTo(guesserId, "agora_token", { token: guesserToken.token, channel: this.roomCode, uid: 1, role: "subscriber" });
+    const hummerPlayerIndex = (this.currentRound - 1) % 2;
+    const guesserPlayerIndex = 1 - hummerPlayerIndex;
+    const hummerUid = hummerPlayerIndex;
+    const guesserUid = guesserPlayerIndex;
 
     this.emitTo(hummerId, "new_round", {
       roundNumber: this.currentRound,
@@ -153,31 +152,39 @@ export class GameSession {
       opponentNickname: this.players_.find((p) => p.id === hummerId)?.nickname,
     });
 
-    let elapsed = 0;
-    this.turnManager.startTimer(
-      this.roomCode,
-      (timerElapsed) => {
-        elapsed = timerElapsed;
-        this.emitAll("timer_sync", {
-          secondsElapsed: elapsed,
-          timeLimit: this.guessTimeLimit,
-          serverTimestamp: Date.now(),
-        });
-      },
-      () => {
-        this.handleTimeout();
-      },
-      this.guessTimeLimit,
-    );
+    const hummerToken = this.generateToken(this.roomCode, hummerUid, "publisher");
+    const guesserToken = this.generateToken(this.roomCode, guesserUid, "subscriber");
+
+    this.emitTo(hummerId, "agora_token", { token: hummerToken.token, channel: this.roomCode, uid: hummerUid, role: "publisher" });
+    this.emitTo(guesserId, "agora_token", { token: guesserToken.token, channel: this.roomCode, uid: guesserUid, role: "subscriber" });
   }
 
   startGuessing(): void {
     if (this.phase !== "round_active" || this.guessPhaseStarted) return;
     this.guessPhaseStarted = true;
     this.guessPhaseStartTime = Date.now();
+
     this.emitTo(this.getGuesserId(), "humming_started", {
       message: "Tu rival empezó a tararear. ¡Escuchá bien!",
     });
+
+    let elapsed = 0;
+    const timeLimit = this.guessTimeLimit;
+    this.turnManager.startTimer(
+      this.roomCode,
+      (timerElapsed) => {
+        elapsed = timerElapsed;
+        this.emitAll("timer_sync", {
+          secondsElapsed: elapsed,
+          timeLimit,
+          serverTimestamp: Date.now(),
+        });
+      },
+      () => {
+        this.handleTimeout();
+      },
+      timeLimit,
+    );
   }
 
   requestRehum(requesterId: string): void {

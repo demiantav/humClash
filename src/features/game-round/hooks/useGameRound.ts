@@ -43,9 +43,24 @@ export function useGameRound(roomCode: string) {
   const [hintVisible, setHintVisible] = useState(false);
   const [rehumAvailable, setRehumAvailable] = useState(true);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [countdownValue, setCountdownValue] = useState<number | null>(null);
+  const [hummingStarted, setHummingStarted] = useState(false);
   const timeLimitRef = useRef(0);
 
   useEffect(() => {
+    const onGameStarting = (data: { round: number; totalRounds: number }) => {
+      setPhase("countdown");
+      setRound(data.round);
+    };
+
+    const onCountdownTick = (data: { count: number }) => {
+      setCountdownValue(data.count);
+    };
+
+    const onHummingStarted = () => {
+      setHummingStarted(true);
+    };
+
     const onNewRound = (data: NewRoundData) => {
       setPhase("playing");
       setMyRole(data.yourRole);
@@ -53,12 +68,15 @@ export function useGameRound(roomCode: string) {
       setCurrentSong(data.song);
       setOptions(data.options);
       setTimeLeft(data.timeLimit);
+      setTimeLimit(data.timeLimit);
       setOpponentNickname(data.opponentNickname);
       setRoundResult(null);
       setLastGuessCorrect(null);
       setHintVisible(false);
       setRehumAvailable(true);
       setHasSubmitted(false);
+      setCountdownValue(null);
+      setHummingStarted(false);
       timeLimitRef.current = data.timeLimit;
     };
 
@@ -98,6 +116,9 @@ export function useGameRound(roomCode: string) {
       setRehumAvailable(false);
     };
 
+    socket.on("game_starting", onGameStarting);
+    socket.on("countdown_tick", onCountdownTick);
+    socket.on("humming_started", onHummingStarted);
     socket.on("new_round", onNewRound);
     socket.on("timer_sync", onTimerSync);
     socket.on("round_result", onRoundResult);
@@ -105,6 +126,9 @@ export function useGameRound(roomCode: string) {
     socket.on("rehum_requested", onRehumRequested);
 
     return () => {
+      socket.off("game_starting", onGameStarting);
+      socket.off("countdown_tick", onCountdownTick);
+      socket.off("humming_started", onHummingStarted);
       socket.off("new_round", onNewRound);
       socket.off("timer_sync", onTimerSync);
       socket.off("round_result", onRoundResult);
@@ -160,6 +184,8 @@ export function useGameRound(roomCode: string) {
     hintVisible,
     rehumAvailable,
     hasSubmitted,
+    countdownValue,
+    hummingStarted,
     submitGuess,
     startHumming,
     requestRehum,

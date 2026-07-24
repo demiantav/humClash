@@ -79,23 +79,6 @@ export function registerGameHandlers(
   socket: Socket,
   roomManager: RoomManager,
 ) {
-  socket.on("request_agora_token", ({ roomCode }: { roomCode: string }) => {
-    const room = roomManager.getRoom(roomCode);
-    if (!room) return;
-
-    const playerIndex = room.players.findIndex((p) => p.id === socket.id);
-    const uid = playerIndex >= 0 ? playerIndex : 0;
-    const role = uid === 0 ? ("publisher" as const) : ("subscriber" as const);
-    const result = generateAgoraToken(roomCode, uid, role);
-
-    socket.emit("agora_token", {
-      token: result.token,
-      channel: roomCode,
-      uid,
-      role,
-    });
-  });
-
   socket.on("start_humming", ({ roomCode }: { roomCode: string }) => {
     const session = getSession(roomCode);
     if (!session) return;

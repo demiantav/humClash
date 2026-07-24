@@ -17,6 +17,8 @@ interface UseAgoraResult {
   error: string | null;
   toggleMute: () => void;
   setMuted: (muted: boolean) => void;
+  muteRemote: () => void;
+  unmuteRemote: () => void;
 }
 
 export function useAgora(
@@ -31,26 +33,42 @@ export function useAgora(
   const [error, setError] = useState<string | null>(null);
   const engineRef = useRef<any>(null);
   const tokenRef = useRef<AgoraTokenData | null>(null);
+  const roleRef = useRef(role);
+  roleRef.current = role;
 
   useEffect(() => {
-    socket.on("agora_token", (data: AgoraTokenData) => {
+    const onToken = (data: AgoraTokenData) => {
       tokenRef.current = data;
       connect(data);
-    });
+    };
 
-    socket.emit("request_agora_token", { roomCode });
+    socket.on("agora_token", onToken);
 
     return () => {
-      socket.off("agora_token");
+      socket.off("agora_token", onToken);
       leaveChannel();
     };
   }, [roomCode]);
 
   useEffect(() => {
-    if (tokenRef.current) {
-      connect(tokenRef.current);
+    if (engineRef.current) {
+      applyRole(role);
     }
   }, [role]);
+
+  const applyRole = (currentRole: "hummer" | "guesser") => {
+    try {
+      const { ClientRoleType } = require("react-native-agora");
+      const clientRole = currentRole === "hummer"
+        ? ClientRoleType.ClientRoleBroadcaster
+        : ClientRoleType.ClientRoleAudience;
+      engineRef.current.setClientRole(clientRole);
+
+      const shouldMute = currentRole !== "hummer";
+      engineRef.current.muteLocalAudioStream(shouldMute);
+      setIsMuted(shouldMute);
+    } catch {}
+  };
 
   const connect = async (data: AgoraTokenData) => {
     try {
@@ -67,11 +85,14 @@ export function useAgora(
         onJoinChannelSuccess: () => {
           setIsJoined(true);
         },
+        onUserJoined: (_connection: any, _uid: number) => {
+          setRemoteAudioLevel(0.3);
+        },
+        onUserOffline: (_connection: any, _uid: number, _reason: number) => {
+          setRemoteAudioLevel(0);
+        },
         onLocalAudioStateChanged: (_connection: any, state: number, _error: number) => {
           setIsSpeaking(state === 1 || state === 2);
-          if (state === 1 && data.role === "publisher") {
-            setIsSpeaking(true);
-          }
         },
         onRemoteAudioStateChanged: (_connection: any, _uid: number, state: number, _reason: number) => {
           setRemoteAudioLevel(state === 2 ? 1 : state === 1 ? 0.5 : 0);
@@ -95,16 +116,20 @@ export function useAgora(
         : ClientRoleType.ClientRoleAudience;
       engine.setClientRole(clientRole);
 
-      engine.joinChannel(data.token, data.channel, data.uid, {
-        publishMicrophoneTrack: data.role === "publisher",
-        autoSubscribeAudio: true,
-      });
+      try {
+        await engine.joinChannel(data.token, data.channel, data.uid, {
+          publishMicrophoneTrack: data.role === "publisher",
+          autoSubscribeAudio: true,
+        });
+        setIsInitialized(true);
+      } catch (joinErr: any) {
+        setError(joinErr?.message || "Failed to join Agora channel");
+        return;
+      }
 
-      const shouldMute = role !== "hummer" || data.role !== "publisher";
+      const shouldMute = roleRef.current !== "hummer" || data.role !== "publisher";
       engine.muteLocalAudioStream(shouldMute);
       setIsMuted(shouldMute);
-
-      setIsInitialized(true);
     } catch (err: any) {
       if (err.message?.includes("Cannot find module")) {
         setError("Agora SDK not available — voice disabled");
@@ -139,6 +164,18 @@ export function useAgora(
     } catch {}
   }, []);
 
+  const muteRemote = useCallback(() => {
+    try {
+      engineRef.current?.muteAllRemoteAudioStreams(true);
+    } catch {}
+  }, []);
+
+  const unmuteRemote = useCallback(() => {
+    try {
+      engineRef.current?.muteAllRemoteAudioStreams(false);
+    } catch {}
+  }, []);
+
   return {
     isInitialized,
     isJoined,
@@ -148,5 +185,7 @@ export function useAgora(
     error,
     toggleMute,
     setMuted,
+    muteRemote,
+    unmuteRemote,
   };
 }

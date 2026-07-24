@@ -78,7 +78,7 @@ export default function GameScreen() {
   if (game.phase === "lobby" || game.phase === "countdown") {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <CountdownOverlay onFinish={() => setShowCountdown(false)} />
+        <CountdownOverlay onFinish={() => setShowCountdown(false)} tick={game.countdownValue} />
       </SafeAreaView>
     );
   }
@@ -93,6 +93,8 @@ export default function GameScreen() {
                 <MuteButton
                   roomCode={String(roomCode ?? "")}
                   targetNickname={game.opponentNickname}
+                  onMuteRemote={agora.muteRemote}
+                  onUnmuteRemote={agora.unmuteRemote}
                 />
                 <ReportButton
                   roomCode={String(roomCode ?? "")}
@@ -150,7 +152,7 @@ export default function GameScreen() {
                 onSubmitGuess={game.submitGuess}
                 onRequestRehum={game.requestRehum}
                 remoteAudioLevel={agora.remoteAudioLevel}
-                isAudioActive={agora.isJoined && !agora.isMuted}
+                isAudioActive={agora.isJoined}
                 agoraError={agora.error}
               />
             ) : (

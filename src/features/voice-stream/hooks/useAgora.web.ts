@@ -9,6 +9,8 @@ interface UseAgoraResult {
   error: string | null;
   toggleMute: () => void;
   setMuted: (muted: boolean) => void;
+  muteRemote: () => void;
+  unmuteRemote: () => void;
 }
 
 export function useAgora(
@@ -21,6 +23,9 @@ export function useAgora(
     setIsMuted((m) => !m);
   }, []);
 
+  const muteRemote = useCallback(() => {}, []);
+  const unmuteRemote = useCallback(() => {}, []);
+
   return {
     isInitialized: false,
     isJoined: false,
@@ -30,5 +35,7 @@ export function useAgora(
     error: "Voz no disponible en web",
     toggleMute,
     setMuted: setIsMuted,
+    muteRemote,
+    unmuteRemote,
   };
 }
