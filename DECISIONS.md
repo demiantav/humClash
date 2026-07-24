@@ -157,3 +157,84 @@ Al abrir una sesión nueva: leer este archivo + `AGENTS.md` antes de tocar códi
 - Edge case pendiente: player_disconnected durante countdown (Fase 7).
 
 **Branch:** feature/kickoff-setup.
+
+---
+
+## 2026-07-24 — Git flow: cuándo cerrar una rama
+
+**Decidido:**
+
+El agente (OpenCode) avisará proactivamente cuándo es momento de cerrar una rama feature
+en lugar de acumular commits indefinidamente. Criterios para sugerir merge + delete +
+nueva rama:
+
+- **Se completó una feature lógica** (ej. "integración Agora", "pantalla de resultados").
+  No esperar a tener 10 features en una misma rama.
+- **Se acumularon 5+ commits** en la rama actual sin mergear a `develop`. Revisar si
+  conviene cerrar antes de seguir.
+- **Cambio de foco** (ej. pasamos de frontend a backend, o de una feature a otra no
+  relacionada). Rama nueva = contexto limpio.
+- **Antes de empezar una fase nueva del plan** (Fase 2, Fase 3, etc.), mergear la rama
+  actual a `develop` y crear una nueva desde `develop`.
+
+**Flujo estándar que ejecuta el agente:**
+
+1. `git checkout develop && git merge <feature> --no-edit`
+2. `git branch -d <feature>` (local)
+3. `git push origin --delete <feature>` (remote)
+4. `git checkout -b feature/<nueva-feature>` desde `develop`
+
+El agente **no** mergea directo a `main` — eso se hace vía PR desde `develop` cuando
+haya versión estable para deploy.
+
+**Branch actual:** feature/matchmaking-salidas-ui (Fase 2).
+
+---
+
+## 2026-07-24 — Configuración de EAS Build y testing en dispositivo
+
+**Avances de la sesión:**
+
+- Configuración completa de **EAS Build** para Android:
+  - `expo-dev-client` ya instalado en el proyecto.
+  - Instalación de `eas-cli` como devDependency.
+  - Login en Expo (`deeem06`), proyecto creado en EAS: `@deeem06/humclash`.
+  - `eas.json` creado con profile `development` (APK, developmentClient).
+  - `owner: "deeem06"` agregado a `app.json` para resolver múltiples cuentas.
+- **2 bugs encontrados y resueltos durante el build:**
+  1. `package-lock.json` corrupto/desincronizado (no contenía `typescript@5.9.3` requerido por eas-cli). Solución: `rm -rf node_modules package-lock.json && npm install`.
+  2. Error `EUSAGE: typescript@5.9.3 missing from lock file` en EAS resuelto al regenerar el lock file desde cero.
+- **Build #3 en curso:** `97351290-d544-40df-86a5-1f25d269c386` — pasó `npm ci` y entró en compilación Gradle.
+- **Secrets de EAS seteados:**
+  - `EXPO_PUBLIC_AGORA_APP_ID` (App ID de Agora Console).
+  - `EXPO_PUBLIC_SERVER_URL` (IP local para conectar celu ↔ backend).
+- **Stub web creado:** `useAgora.web.ts` — retorna estado inerte, permite compilar la app en web sin módulo nativo de Agora.
+- **Fix MuteButton:** import de socket de `require()` dinámico a import estático (`src/features/moderation/components/MuteButton.tsx:6`).
+- **Remoción de GestureHandlerRootView** en `app/_layout.tsx` — no está en uso, pero si en el futuro se necesita react-native-gesture-handler, restaurar.
+- `feature/kickoff-setup` mergeada a `develop` y eliminada (local). Remote pendiente: GitHub tiene `feature/kickoff-setup` como default branch, hay que cambiarlo a `develop` manualmente.
+- Nueva rama `feature/matchmaking-salidas-ui` creada desde `develop` (2 commits chore de lock file).
+
+**Estado de fases del plan (actualizado):**
+
+| Fase | Descripción | Estado |
+|---|---|---|
+| 0 | Setup | ✅ |
+| 1 | Backend Core | ✅ |
+| 2 | Matchmaking | ✅ |
+| 3 | Game Loop | ✅ |
+| 4 | Agora WebRTC | ✅ |
+| 5 | Resultados | ❌ Placeholder |
+| 6 | Animaciones & Sonidos | 🟡 Parcial (falta expo-av, confetti, transiciones) |
+| 7 | Onboarding & Moderación | 🟡 Parcial (falta report modal, edge cases) |
+| 8 | Testing & Deploy | 🔄 Build #3 en curso |
+
+**Acciones inmediatas próxima sesión:**
+1. Verificar que build #3 de EAS terminó OK.
+2. Instalar APK en dispositivo Android, correr backend local (`npm run server`).
+3. Probar partida completa: create → join → lobby → ready → countdown → 5 rondas → game_over → rematch.
+
+**Próxima feature a implementar: Fase 5 — Resultados.**
+- Pantalla de resultados con confetti animado (Reanimated).
+- Tabla de puntajes por ronda.
+- Revancha con narrativa competitiva.
+- Navegación desde `game.tsx` → `results.tsx` ya existe (placeholder).

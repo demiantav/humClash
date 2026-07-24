@@ -2,6 +2,7 @@
   "expo": {
     "name": "HumClash",
     "slug": "humclash",
+    "owner": "deeem06",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -37,6 +38,12 @@
     },
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3d1da7fc-55bf-4724-a5a3-f134605a5481"
+      }
     }
   }
 }
