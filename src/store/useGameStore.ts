@@ -10,6 +10,8 @@ interface GameState {
   options: Song[];
   scores: ScoreEntry[];
   timeLeft: number;
+  timeLimit: number;
+  serverTimestamp: number;
   comboCount: number;
   setPhase: (phase: GamePhase) => void;
   setMyRole: (role: PlayerRole) => void;
@@ -18,6 +20,8 @@ interface GameState {
   setOptions: (options: Song[]) => void;
   setScores: (scores: ScoreEntry[]) => void;
   setTimeLeft: (time: number) => void;
+  setTimeLimit: (limit: number) => void;
+  setServerTimestamp: (ts: number) => void;
   incrementCombo: () => void;
   resetCombo: () => void;
   reset: () => void;
@@ -32,6 +36,8 @@ export const useGameStore = create<GameState>((set) => ({
   options: [],
   scores: [],
   timeLeft: 0,
+  timeLimit: 0,
+  serverTimestamp: 0,
   comboCount: 0,
   setPhase: (phase) => set({ phase }),
   setMyRole: (role) => set({ myRole: role }),
@@ -40,6 +46,8 @@ export const useGameStore = create<GameState>((set) => ({
   setOptions: (options) => set({ options }),
   setScores: (scores) => set({ scores }),
   setTimeLeft: (time) => set({ timeLeft: time }),
+  setTimeLimit: (limit) => set({ timeLimit: limit }),
+  setServerTimestamp: (ts) => set({ serverTimestamp: ts }),
   incrementCombo: () => set((state) => ({ comboCount: state.comboCount + 1 })),
   resetCombo: () => set({ comboCount: 0 }),
   reset: () =>
@@ -52,6 +60,8 @@ export const useGameStore = create<GameState>((set) => ({
       options: [],
       scores: [],
       timeLeft: 0,
+      timeLimit: 0,
+      serverTimestamp: 0,
       comboCount: 0,
     }),
 }));

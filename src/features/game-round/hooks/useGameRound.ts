@@ -19,6 +19,8 @@ export function useGameRound(roomCode: string) {
     options,
     scores,
     timeLeft,
+    timeLimit,
+    serverTimestamp,
     comboCount,
     setPhase,
     setMyRole,
@@ -27,6 +29,8 @@ export function useGameRound(roomCode: string) {
     setOptions,
     setScores,
     setTimeLeft,
+    setTimeLimit,
+    setServerTimestamp,
     incrementCombo,
     resetCombo,
     reset,
@@ -63,6 +67,8 @@ export function useGameRound(roomCode: string) {
       const elapsed = data.secondsElapsed + (Date.now() - data.serverTimestamp) / 1000;
       const remaining = Math.max(0, data.timeLimit - elapsed);
       setTimeLeft(Math.ceil(remaining));
+      setTimeLimit(data.timeLimit);
+      setServerTimestamp(data.serverTimestamp);
 
       if (data.secondsElapsed >= 10 && myRole === "guesser") {
         setHintVisible(true);
@@ -144,6 +150,8 @@ export function useGameRound(roomCode: string) {
     options,
     scores,
     timeLeft,
+    timeLimit,
+    serverTimestamp,
     comboCount,
     opponentNickname,
     roundResult,

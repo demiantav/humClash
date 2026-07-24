@@ -109,9 +109,9 @@ export default function GameScreen() {
 
             <TimerBar
               timeLeft={game.timeLeft}
-              timeLimit={game.timeLeft > 0 ? game.timeLeft + 1 : 1}
-              secondsElapsed={game.timeLeft}
-              serverTimestamp={Date.now()}
+              timeLimit={game.timeLimit}
+              secondsElapsed={game.timeLimit - game.timeLeft}
+              serverTimestamp={game.serverTimestamp}
             />
 
             <RoundProgressDots
@@ -126,7 +126,7 @@ export default function GameScreen() {
               <HummerView
                 song={game.currentSong}
                 timeLeft={game.timeLeft}
-                timeLimit={game.timeLeft > 0 ? game.timeLeft + 1 : 20}
+                timeLimit={game.timeLimit}
                 onStartHumming={game.startHumming}
                 roundNumber={game.currentRound}
                 opponentNickname={game.opponentNickname}
@@ -139,7 +139,7 @@ export default function GameScreen() {
               <GuesserView
                 options={game.options}
                 timeLeft={game.timeLeft}
-                timeLimit={15}
+                timeLimit={game.timeLimit}
                 hintVisible={game.hintVisible}
                 currentSong={game.currentSong}
                 rehumAvailable={game.rehumAvailable}
