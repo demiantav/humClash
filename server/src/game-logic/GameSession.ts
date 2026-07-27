@@ -127,10 +127,8 @@ export class GameSession {
     const hummerId = this.getHummerId();
     const guesserId = this.getGuesserId();
 
-    const hummerPlayerIndex = (this.currentRound - 1) % 2;
-    const guesserPlayerIndex = 1 - hummerPlayerIndex;
-    const hummerUid = hummerPlayerIndex;
-    const guesserUid = guesserPlayerIndex;
+    const hummerIndex = (this.currentRound - 1) % 2;
+    const guesserIndex = 1 - hummerIndex;
 
     this.emitTo(hummerId, "new_round", {
       roundNumber: this.currentRound,
@@ -152,11 +150,16 @@ export class GameSession {
       opponentNickname: this.players_.find((p) => p.id === hummerId)?.nickname,
     });
 
+    const hummerUid = hummerIndex + 1;
+    const guesserUid = guesserIndex + 1;
+
     const hummerToken = this.generateToken(this.roomCode, hummerUid, "publisher");
     const guesserToken = this.generateToken(this.roomCode, guesserUid, "subscriber");
 
     this.emitTo(hummerId, "agora_token", { token: hummerToken.token, channel: this.roomCode, uid: hummerUid, role: "publisher" });
     this.emitTo(guesserId, "agora_token", { token: guesserToken.token, channel: this.roomCode, uid: guesserUid, role: "subscriber" });
+
+    console.log(`[agora] Round ${this.currentRound} — tokens emitted: hummer=uid${hummerUid}(pub), guesser=uid${guesserUid}(sub) — ch=${this.roomCode}`);
   }
 
   startGuessing(): void {

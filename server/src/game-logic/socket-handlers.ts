@@ -23,12 +23,6 @@ function createSession(roomManager: RoomManager, roomCode: string, io: Server): 
     generateAgoraToken,
   );
   gameSessions.set(roomCode, session);
-
-  const token0 = generateAgoraToken(roomCode, 0, "publisher");
-  const token1 = generateAgoraToken(roomCode, 1, "subscriber");
-  io.to(room.players[0].socketId).emit("agora_token", { token: token0.token, channel: roomCode, uid: 0, role: "publisher" });
-  io.to(room.players[1].socketId).emit("agora_token", { token: token1.token, channel: roomCode, uid: 1, role: "subscriber" });
-
   return session;
 }
 
