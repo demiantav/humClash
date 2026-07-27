@@ -22,6 +22,7 @@ export function useGameRound(roomCode: string) {
     timeLimit,
     serverTimestamp,
     comboCount,
+    gameOver,
     setPhase,
     setMyRole,
     setRound,
@@ -31,6 +32,7 @@ export function useGameRound(roomCode: string) {
     setTimeLeft,
     setTimeLimit,
     setServerTimestamp,
+    setGameOver,
     incrementCombo,
     resetCombo,
     reset,
@@ -38,7 +40,6 @@ export function useGameRound(roomCode: string) {
 
   const [opponentNickname, setOpponentNickname] = useState("");
   const [roundResult, setRoundResult] = useState<RoundResultData | null>(null);
-  const [gameOver, setGameOver] = useState<GameOverData | null>(null);
   const [lastGuessCorrect, setLastGuessCorrect] = useState<boolean | null>(null);
   const [hintVisible, setHintVisible] = useState(false);
   const [rehumAvailable, setRehumAvailable] = useState(true);
@@ -112,6 +113,14 @@ export function useGameRound(roomCode: string) {
       setScores(data.scores);
     };
 
+    const onRematchRequested = () => {
+      useGameStore.getState().setRematchRequestedByRival(true);
+    };
+
+    const onRematchAccepted = () => {
+      useGameStore.getState().setRematchRequestedByRival(false);
+    };
+
     const onRehumRequested = (data: { message: string }) => {
       setRehumAvailable(false);
     };
@@ -124,6 +133,8 @@ export function useGameRound(roomCode: string) {
     socket.on("round_result", onRoundResult);
     socket.on("game_over", onGameOver);
     socket.on("rehum_requested", onRehumRequested);
+    socket.on("rematch_requested", onRematchRequested);
+    socket.on("rematch_accepted", onRematchAccepted);
 
     return () => {
       socket.off("game_starting", onGameStarting);
@@ -134,6 +145,8 @@ export function useGameRound(roomCode: string) {
       socket.off("round_result", onRoundResult);
       socket.off("game_over", onGameOver);
       socket.off("rehum_requested", onRehumRequested);
+      socket.off("rematch_requested", onRematchRequested);
+      socket.off("rematch_accepted", onRematchAccepted);
     };
   }, [myRole]);
 

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { GamePhase, PlayerRole, Song, ScoreEntry } from "../shared/types";
+import { GamePhase, PlayerRole, Song, ScoreEntry, GameOverData } from "../shared/types";
 
 interface GameState {
   phase: GamePhase;
@@ -13,6 +13,8 @@ interface GameState {
   timeLimit: number;
   serverTimestamp: number;
   comboCount: number;
+  gameOver: GameOverData | null;
+  rematchRequestedByRival: boolean;
   setPhase: (phase: GamePhase) => void;
   setMyRole: (role: PlayerRole) => void;
   setRound: (round: number) => void;
@@ -22,6 +24,8 @@ interface GameState {
   setTimeLeft: (time: number) => void;
   setTimeLimit: (limit: number) => void;
   setServerTimestamp: (ts: number) => void;
+  setGameOver: (data: GameOverData | null) => void;
+  setRematchRequestedByRival: (v: boolean) => void;
   incrementCombo: () => void;
   resetCombo: () => void;
   reset: () => void;
@@ -39,6 +43,8 @@ export const useGameStore = create<GameState>((set) => ({
   timeLimit: 0,
   serverTimestamp: 0,
   comboCount: 0,
+  gameOver: null,
+  rematchRequestedByRival: false,
   setPhase: (phase) => set({ phase }),
   setMyRole: (role) => set({ myRole: role }),
   setRound: (round) => set({ currentRound: round }),
@@ -48,6 +54,8 @@ export const useGameStore = create<GameState>((set) => ({
   setTimeLeft: (time) => set({ timeLeft: time }),
   setTimeLimit: (limit) => set({ timeLimit: limit }),
   setServerTimestamp: (ts) => set({ serverTimestamp: ts }),
+  setGameOver: (data) => set({ gameOver: data }),
+  setRematchRequestedByRival: (v) => set({ rematchRequestedByRival: v }),
   incrementCombo: () => set((state) => ({ comboCount: state.comboCount + 1 })),
   resetCombo: () => set({ comboCount: 0 }),
   reset: () =>
@@ -63,5 +71,7 @@ export const useGameStore = create<GameState>((set) => ({
       timeLimit: 0,
       serverTimestamp: 0,
       comboCount: 0,
+      gameOver: null,
+      rematchRequestedByRival: false,
     }),
 }));
