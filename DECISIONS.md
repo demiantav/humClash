@@ -278,3 +278,115 @@ haya versión estable para deploy.
 - Tabla de puntajes por ronda.
 - Revancha con narrativa competitiva.
 - Navegación desde `game.tsx` → `results.tsx` ya existe (placeholder).
+
+---
+
+## 2026-07-27 — Fase 5 Resultados implementada + fixes Agora commiteados
+
+**Branch:** `feature/results-screen` (creada desde `develop`).
+
+**Cierre de rama anterior:**
+- Commiteados los fixes de audio Agora que estaban sin commitear en
+  `feature/matchmaking-salidas-ui` (uid+1, profile LiveBroadcasting, permiso
+  RECORD_AUDIO, renewToken sin destruir engine, logs RC). Mergeado a `develop`
+  y rama vieja borrada (local + remoto).
+- ⚠️ **Pendiente validar audio en dispositivo real** (siguiente sesión con APK
+  + backend local). El commit entra como fix pendiente de verificación visual.
+
+**Refactor de datos (prerrequisito de Fase 5):**
+- `gameOver` y `rematchRequestedByRival` migrados de `useState` local de
+  `useGameRound` al store Zustand (`useGameStore`). Antes se perdía la data
+  de toda la partida al desmontar `game.tsx` → imposible pintar tabla de
+  resultados aunque quisieras.
+- `GameOverData` + `GameOverRound` movidos a `src/shared/types.ts` para romper
+  el ciclo de imports entre store y socket-events.
+- `game.tsx` navega a `/results` sin `winnerId/winnerName` (ya en el store).
+
+**Fase 5 — Implementación (commit `80ba66b`):**
+- `Confetti.tsx`: 36 partículas Reanimated (spring + timing + delay random),
+  se dibuja solo si `outcome === "win"`. paleta saturada.
+- `WinnerBanner.tsx`: título chunky con `useResultEntrance` (slam/zoom spring),
+  fondo por outcome (verde/dorado si gané, rojo si perdí, púrpura si empate).
+- `RoundScoreTable.tsx`: 5 filas (canción, acierto ✓/✕, timeTaken, score).
+  Fila del jugador resaltada vs rival. Zebra.
+- `RematchButton.tsx`: squash & stretch al press + haptic light + estados
+  idle/sent/accepted. Spinner en "esperando".
+- `SecondaryButton.tsx`: "Volver al inicio" reutilizable.
+- `RematchIncomingSheet.tsx`: **bottom-sheet** (decisión UX) cuando el rival
+  pide revancha primero. Narrativa competitiva "Perdiste la primera, ¿vas a
+  dejar que gane la serie?". Botón aceptar con haptic Medium.
+- `useRematch.ts`: hook que escucha `rematch_requested`/`rematch_accepted`,
+  expone `requestRematch`/`acceptRematch`/`declineRematch`. Navega a `/game`
+  en accepted tras `resetGame()`.
+- `app/results.tsx`: layout vertical (banner → narrativa → tabla → acciones),
+  confetti overlay en victoria, haptics Success/Error al montar + screen shake,
+  botón Volver → `leave_room` + `resetGame` + `router.replace("/")`.
+- Narrativa derivada de `gameOver.rounds`: fast hits (<3s) en derrota →
+  "Adivinaste X en menos de 3 segundos"; hits normales → fallback; empate →
+  "Serie empatada — ¿desempate?".
+
+**Decisiones tomadas en esta sesión:**
+
+1. **Identidad "yo" vía `nickname`** (no `playerId`). El cliente no conoce su
+   `playerId` en el store; comparar `nickname` contra `winner.nickname` y
+   `scores[i].nickname`. **Colisión de apodos queda fuera del MVP** —
+   irrelevante con salas privadas entre amigos. Revisar si mueve a
+   matchmaking aleatorio (Fase 1 escalada).
+2. **Modal/bottom-sheet para revancha entrante** (decisión UX vs botón inline
+   o auto-aceptar). Más dramático, más código — justificado por el énfasis
+   competitivo del diseño.
+3. **"Volver al inicio" → `leave_room` + `resetGame` + `router.replace("/")`**.
+   Cierra socket y limpia estado. No depende del timer de inactividad del
+   server (5min).
+
+**Limitaciones conocidas (aceptadas para MVP):**
+
+- **Echo `rematch_requested` al iniciador.** Cuando jugador A pide revancha y
+  B acepta emitiendo `accept_rematch`, el server trata eso como otro
+  `requestRematch` → emite `rematch_requested` a A también. Resultado: A ve
+  el bottom-sheet flashear brevemente entre `rematch_requested` y
+  `rematch_accepted` (que llega enseguida y limpia el flag). No rompe
+  navegación. Si molesta en device, mitigar ignorando `rematch_requested`
+  cuando `status === "sent"` en el store (futuro fix menor).
+- **Rechazar revancha no avisa al rival.** `declineRematch` solo limpia
+  flag local. El rival que pidió queda esperando. Post-MVP: agregar
+  `decline_rematch` server-side + emitir `rematch_declined` al iniciador.
+- **`expo-av` sigue fuera** (incompatibilidad binaria RN 0.86). Los sonidos
+  de victoria/pop quedan pendientes para Fase 6 cuando Expo lo arregle.
+
+**Estado de fases del plan (actualizado):**
+
+| Fase | Descripción | Estado |
+|---|---|---|
+| 0 | Setup | ✅ |
+| 1 | Backend Core | ✅ |
+| 2 | Matchmaking | ✅ |
+| 3 | Game Loop | ✅ |
+| 4 | Agora WebRTC | ✅ (sin validar en device) |
+| 5 | Resultados | ✅ Implementada, falta validar visual |
+| 6 | Animaciones & Sonidos | 🟡 Parcial (falta expo-av, transiciones slam/zoom entre turnos) |
+| 7 | Onboarding & Moderación | 🟡 Parcial (falta report modal, edge cases de desconexión) |
+| 8 | Testing & Deploy | 🔄 Build #3 pendiente verificación |
+
+**Verificación de esta sesión:**
+- `npm run lint` (tsc --noEmit): ✅ pasa.
+- `npm --prefix server run lint`: ✅ pasa.
+- ESLint v9 no configurado en el repo (.eslintrc.json legacy incompatible).
+  El `lint` script del proyecto usa `tsc --noEmit`. Agendar migrar a
+  `eslint.config.js` (flat config) en limpieza post-MVP.
+
+**Próxima sesión:**
+
+1. ✅ **Validar audio Agora en device real** (el fix commiteado hoy está sin
+   probar): APK Android + backend local + partida completa con voz.
+2. Validar visualmente la pantalla de resultados: confetti, tabla, revancha
+   (pedirla desde el otro device para ver bottom-sheet, y aceptarla para
+   verificar navegación a nueva partida).
+3. Si audio OK → mergear `feature/results-screen` a `develop` y crear rama
+   para Fase 6 (transiciones slam/zoom entre turnos + evaluar expo-av).
+4. Si audio NO OK → debuggear antes de avanzar. Posible candidato: orden de
+   `setClientRole` vs `joinChannel` en cambio de rol.
+5. Fase 7: `ReportButton` modal con motivos rápidos + edge cases de
+   desconexión (`player_disconnected` durante countdown, timer de gracia 15s).
+
+**Branch actual:** `feature/results-screen`.
