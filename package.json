@@ -28,7 +28,8 @@
     "@expo/require-utils": "^57.0.4",
     "@types/react": "~19.2.2",
     "eas-cli": "^21.1.0",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^3.2.7"
   },
   "scripts": {
     "start": "expo start",
@@ -36,7 +37,11 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "npx tsc --noEmit",
-    "server": "cd server && npm run dev"
+    "server": "cd server && npm run dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:server": "npm --prefix server test",
+    "test:all": "vitest run && npm --prefix server test"
   },
   "private": true
 }

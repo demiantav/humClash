@@ -16,3 +16,7 @@ export function addReport(report: ReportEntry): void {
 export function getReports(): ReportEntry[] {
   return [...reports];
 }
+
+export function clearReports(): void {
+  reports.length = 0;
+}

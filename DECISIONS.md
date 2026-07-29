@@ -278,3 +278,46 @@ haya versión estable para deploy.
 - Tabla de puntajes por ronda.
 - Revancha con narrativa competitiva.
 - Navegación desde `game.tsx` → `results.tsx` ya existe (placeholder).
+
+---
+
+## 2026-07-29 — Testing foundation (T0 + T1 + integración server)
+
+**Branch:** `feature/testing-foundation` (desde `develop`).
+
+**Decidido:**
+- Stack de tests: **Vitest** en server y client (utils/stores). Sin Jest por ahora.
+- E2E (Maestro) y CI GitHub Actions quedan para fases T4/T5 posteriores.
+- Tests unitarios colocalizados (`*.test.ts` al lado del módulo).
+- Integración Socket.io en `server/src/__tests__/integration/`.
+- Script ad-hoc `run.ts` eliminado; reemplazado por Vitest.
+
+**Implementado:**
+- Server: Vitest + helpers `socketHarness` (server efímero, disconnect real como `index.ts`).
+- Unit: Scoring, SongBank, RoomManager, ReportHandler, rateLimitCore, GameSession (fake timers), AgoraTokenGenerator.
+- Integration: game-flow completo (5 rondas + rematch), disconnect en round_active, rate-limit create_room.
+- Client: timerSync, useGameStore, useRoomStore.
+- Scripts root: `npm test`, `npm run test:server`, `npm run test:all`.
+
+**Bugs encontrados y arreglados al testear:**
+1. **rateLimiter no respondía ack** al bloquear: `packet.data` aún no tiene el callback (Socket.io lo inyecta dentro de `onevent`). Fix: `socket.ack(packet.id)({ success: false, error })`.
+2. **Tras expirar el block de 30s, se re-bloqueaba al instante** porque los timestamps viejos seguían en la ventana. Fix: al vencer `blockedUntil`, limpiar timestamps.
+3. Harness de tests no registraba `disconnect` → `player_disconnected` nunca se emitía en integration.
+
+**Resultados:**
+- Server: **66 passed | 1 todo** (disconnect en countdown = Fase 7).
+- Client: **11 passed**.
+- `tsc --noEmit` OK en root y server.
+
+**Pendiente testing (siguientes iteraciones):**
+- T3 ampliado: tests de `gameOver`/`rematch` en store cuando se mergee `feature/results-screen`.
+- T4 Maestro e2e cuando haya APK estable.
+- T5 CI (`.github/workflows/test.yml`).
+- `it.todo` disconnect durante countdown (Fase 7).
+
+**Cómo correr:**
+```bash
+npm test                 # client unit
+npm run test:server      # server unit + integration (~45s por game-flow real-time)
+npm run test:all         # ambos
+```
