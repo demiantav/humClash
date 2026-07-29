@@ -17,6 +17,8 @@ describe("useGameStore", () => {
     expect(s.options).toEqual([]);
     expect(s.timeLeft).toBe(0);
     expect(s.timeLimit).toBe(0);
+    expect(s.gameOver).toBeNull();
+    expect(s.rematchRequestedByRival).toBe(false);
   });
 
   it("incrementCombo and resetCombo", () => {
@@ -27,7 +29,7 @@ describe("useGameStore", () => {
     expect(useGameStore.getState().comboCount).toBe(0);
   });
 
-  it("reset clears combo, song, options and timer", () => {
+  it("reset clears combo, song, options, timer, gameOver and rematch", () => {
     const s = useGameStore.getState();
     s.setMyRole("hummer");
     s.setRound(3);
@@ -35,6 +37,12 @@ describe("useGameStore", () => {
     s.setTimeLeft(10);
     s.setTimeLimit(15);
     s.setServerTimestamp(99);
+    s.setGameOver({
+      winner: { id: "p1", nickname: "Alice" },
+      scores: [],
+      rounds: [],
+    });
+    s.setRematchRequestedByRival(true);
     s.setCurrentSong({
       id: "s01",
       title: "T",
@@ -67,6 +75,8 @@ describe("useGameStore", () => {
     expect(next.timeLeft).toBe(0);
     expect(next.timeLimit).toBe(0);
     expect(next.serverTimestamp).toBe(0);
+    expect(next.gameOver).toBeNull();
+    expect(next.rematchRequestedByRival).toBe(false);
   });
 
   it("setters update role, round, timer fields", () => {
