@@ -281,9 +281,98 @@ haya versión estable para deploy.
 
 ---
 
+## 2026-07-27 — Fase 5 Resultados implementada + fixes Agora commiteados
+
+**Branch:** `feature/results-screen` (mergeada a `develop` el 2026-07-29).
+
+**Cierre de rama anterior:**
+- Commiteados los fixes de audio Agora que estaban sin commitear en
+  `feature/matchmaking-salidas-ui` (uid+1, profile LiveBroadcasting, permiso
+  RECORD_AUDIO, renewToken sin destruir engine, logs RC). Mergeado a `develop`
+  y rama vieja borrada (local + remoto).
+- ⚠️ **Pendiente validar audio en dispositivo real** (siguiente sesión con APK
+  + backend local). El commit entra como fix pendiente de verificación visual.
+
+**Refactor de datos (prerrequisito de Fase 5):**
+- `gameOver` y `rematchRequestedByRival` migrados de `useState` local de
+  `useGameRound` al store Zustand (`useGameStore`). Antes se perdía la data
+  de toda la partida al desmontar `game.tsx` → imposible pintar tabla de
+  resultados aunque quisieras.
+- `GameOverData` + `GameOverRound` movidos a `src/shared/types.ts` para romper
+  el ciclo de imports entre store y socket-events.
+- `game.tsx` navega a `/results` sin `winnerId/winnerName` (ya en el store).
+
+**Fase 5 — Implementación (commit `80ba66b`):**
+- `Confetti.tsx`: 36 partículas Reanimated (spring + timing + delay random),
+  se dibuja solo si `outcome === "win"`. paleta saturada.
+- `WinnerBanner.tsx`: título chunky con `useResultEntrance` (slam/zoom spring),
+  fondo por outcome (verde/dorado si gané, rojo si perdí, púrpura si empate).
+- `RoundScoreTable.tsx`: 5 filas (canción, acierto ✓/✕, timeTaken, score).
+  Fila del jugador resaltada vs rival. Zebra.
+- `RematchButton.tsx`: squash & stretch al press + haptic light + estados
+  idle/sent/accepted. Spinner en "esperando".
+- `SecondaryButton.tsx`: "Volver al inicio" reutilizable.
+- `RematchIncomingSheet.tsx`: **bottom-sheet** (decisión UX) cuando el rival
+  pide revancha primero. Narrativa competitiva "Perdiste la primera, ¿vas a
+  dejar que gane la serie?". Botón aceptar con haptic Medium.
+- `useRematch.ts`: hook que escucha `rematch_requested`/`rematch_accepted`,
+  expone `requestRematch`/`acceptRematch`/`declineRematch`. Navega a `/game`
+  en accepted tras `resetGame()`.
+- `app/results.tsx`: layout vertical (banner → narrativa → tabla → acciones),
+  confetti overlay en victoria, haptics Success/Error al montar + screen shake,
+  botón Volver → `leave_room` + `resetGame` + `router.replace("/")`.
+- Narrativa derivada de `gameOver.rounds`: fast hits (<3s) en derrota →
+  "Adivinaste X en menos de 3 segundos"; hits normales → fallback; empate →
+  "Serie empatada — ¿desempate?".
+
+**Decisiones tomadas en esta sesión:**
+
+1. **Identidad "yo" vía `nickname`** (no `playerId`). El cliente no conoce su
+   `playerId` en el store; comparar `nickname` contra `winner.nickname` y
+   `scores[i].nickname`. **Colisión de apodos queda fuera del MVP** —
+   irrelevante con salas privadas entre amigos. Revisar si mueve a
+   matchmaking aleatorio (Fase 1 escalada).
+2. **Modal/bottom-sheet para revancha entrante** (decisión UX vs botón inline
+   o auto-aceptar). Más dramático, más código — justificado por el énfasis
+   competitivo del diseño.
+3. **"Volver al inicio" → `leave_room` + `resetGame` + `router.replace("/")`**.
+   Cierra socket y limpia estado. No depende del timer de inactividad del
+   server (5min).
+
+**Limitaciones conocidas (aceptadas para MVP):**
+
+- **Echo `rematch_requested` al iniciador.** Cuando jugador A pide revancha y
+  B acepta emitiendo `accept_rematch`, el server trata eso como otro
+  `requestRematch` → emite `rematch_requested` a A también. Resultado: A ve
+  el bottom-sheet flashear brevemente entre `rematch_requested` y
+  `rematch_accepted` (que llega enseguida y limpia el flag). No rompe
+  navegación. Si molesta en device, mitigar ignorando `rematch_requested`
+  cuando `status === "sent"` en el store (futuro fix menor).
+- **Rechazar revancha no avisa al rival.** `declineRematch` solo limpia
+  flag local. El rival que pidió queda esperando. Post-MVP: agregar
+  `decline_rematch` server-side + emitir `rematch_declined` al iniciador.
+- **`expo-av` sigue fuera** (incompatibilidad binaria RN 0.86). Los sonidos
+  de victoria/pop quedan pendientes para Fase 6 cuando Expo lo arregle.
+
+**Estado de fases del plan (actualizado):**
+
+| Fase | Descripción | Estado |
+|---|---|---|
+| 0 | Setup | ✅ |
+| 1 | Backend Core | ✅ |
+| 2 | Matchmaking | ✅ |
+| 3 | Game Loop | ✅ |
+| 4 | Agora WebRTC | ✅ (sin validar en device) |
+| 5 | Resultados | ✅ Implementada, falta validar visual |
+| 6 | Animaciones & Sonidos | 🟡 Parcial (falta expo-av, transiciones slam/zoom entre turnos) |
+| 7 | Onboarding & Moderación | 🟡 Parcial (falta report modal, edge cases de desconexión) |
+| 8 | Testing & Deploy | 🔄 Vitest foundation OK; falta device + e2e |
+
+---
+
 ## 2026-07-29 — Testing foundation (T0 + T1 + integración server)
 
-**Branch:** `feature/testing-foundation` (desde `develop`).
+**Branch:** `feature/testing-foundation` → mergeada a `develop` junto con results.
 
 **Decidido:**
 - Stack de tests: **Vitest** en server y client (utils/stores). Sin Jest por ahora.
@@ -309,15 +398,21 @@ haya versión estable para deploy.
 - Client: **11 passed**.
 - `tsc --noEmit` OK en root y server.
 
-**Pendiente testing (siguientes iteraciones):**
-- T3 ampliado: tests de `gameOver`/`rematch` en store cuando se mergee `feature/results-screen`.
-- T4 Maestro e2e cuando haya APK estable.
-- T5 CI (`.github/workflows/test.yml`).
-- `it.todo` disconnect durante countdown (Fase 7).
+**Git (esta sesión):**
+- Mergeados a `develop`: testing-foundation + results-screen.
+- Ramas feature locales eliminadas.
+- Remote `origin/feature/results-screen` pendiente de borrar tras push.
 
-**Cómo correr:**
+**Pendiente inmediato:**
+1. Validar audio Agora + results en device real (2 celulares).
+2. Ampliar tests de store con `gameOver`/`rematch` (ya en develop post-merge).
+3. T4 Maestro / T5 CI cuando haya APK estable.
+
+**Cómo correr tests:**
 ```bash
 npm test                 # client unit
-npm run test:server      # server unit + integration (~45s por game-flow real-time)
+npm run test:server      # server unit + integration (~45s)
 npm run test:all         # ambos
 ```
+
+**Branch actual:** `develop`.

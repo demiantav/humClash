@@ -67,8 +67,6 @@ export default function GameScreen() {
           params: {
             roomCode,
             nickname,
-            winnerId: winner?.id ?? "",
-            winnerName: winner?.nickname ?? "Empate",
           },
         });
       }, 1500);

@@ -39,6 +39,22 @@ export interface RoundResult {
   score: number;
 }
 
+export interface GameOverRound {
+  roundNumber: number;
+  song: Song;
+  correct: boolean;
+  score: number;
+  guesserId: string;
+  guesserNickname: string;
+  timeTaken: number;
+}
+
+export interface GameOverData {
+  winner: { id: string; nickname: string } | null;
+  scores: ScoreEntry[];
+  rounds: GameOverRound[];
+}
+
 export type GamePhase = "lobby" | "countdown" | "transition" | "playing" | "result" | "game_over";
 
 export type PlayerRole = "hummer" | "guesser";

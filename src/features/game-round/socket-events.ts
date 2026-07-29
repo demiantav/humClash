@@ -1,4 +1,6 @@
-import { Song, ScoreEntry, RoundResult } from "../../shared/types";
+import { Song, ScoreEntry, GameOverData } from "../../shared/types";
+
+export type { GameOverData };
 
 export interface NewRoundData {
   roundNumber: number;
@@ -25,18 +27,4 @@ export interface RoundResultData {
   timeout?: boolean;
   scores: ScoreEntry[];
   guesserId: string;
-}
-
-export interface GameOverData {
-  winner: { id: string; nickname: string } | null;
-  scores: ScoreEntry[];
-  rounds: {
-    roundNumber: number;
-    song: Song;
-    correct: boolean;
-    score: number;
-    guesserId: string;
-    guesserNickname: string;
-    timeTaken: number;
-  }[];
 }
