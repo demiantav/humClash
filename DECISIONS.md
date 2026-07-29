@@ -401,12 +401,13 @@ haya versión estable para deploy.
 **Git (esta sesión):**
 - Mergeados a `develop`: testing-foundation + results-screen.
 - Ramas feature locales eliminadas.
-- Remote `origin/feature/results-screen` pendiente de borrar tras push.
+- Remote `origin/feature/results-screen` borrado.
+- Tests de `gameOver`/`rematch` en `useGameStore` ya cubiertos post-merge.
 
 **Pendiente inmediato:**
-1. Validar audio Agora + results en device real (2 celulares).
-2. Ampliar tests de store con `gameOver`/`rematch` (ya en develop post-merge).
-3. T4 Maestro / T5 CI cuando haya APK estable.
+1. Validar audio Agora + results en device real (2 celulares) — gate Fase 4+5.
+2. Completar Fase 6 (animaciones/sonidos) sin saltear fases.
+3. T4 Maestro e2e cuando haya APK estable (post gate device).
 
 **Cómo correr tests:**
 ```bash
@@ -415,4 +416,18 @@ npm run test:server      # server unit + integration (~45s)
 npm run test:all         # ambos
 ```
 
-**Branch actual:** `develop`.
+---
+
+## 2026-07-29 — CI con GitHub Actions (T5 liviano)
+
+**Branch:** `feature/ci-github-actions`.
+
+**Decidido:**
+- Workflow `.github/workflows/test.yml` en push/PR a `develop` y `main`.
+- Corre: `npm ci` (root + server) → lint (tsc) client/server → `npm test` client → `npm test` server.
+- Node 22. Sin e2e/Maestro ni build EAS en CI (eso es Fase 8 / device).
+- No saltea fases de producto: es red de seguridad del repo en paralelo al gate 4+5.
+
+**Docs actualizados:** `DECISIONS.md`, `GUIA_DE_ESTUDIO.md` (comandos + Vitest + CI).
+
+**Branch actual:** `feature/ci-github-actions` (mergear a `develop` al cerrar).

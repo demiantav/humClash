@@ -199,6 +199,10 @@ git push -u origin feature/matchmaking-salas-privadas
 # abrir PR contra develop
 ```
 
+**CI (GitHub Actions):** push/PR a `develop` o `main` corre
+`.github/workflows/test.yml` → lint (tsc) + Vitest client + Vitest server.
+No incluye e2e ni build EAS. Ver `npm run test:all` en local.
+
 ## 9. Modelos de IA recomendados (OpenCode Go, sin Claude)
 
 - **Principal / arquitectura difícil** (lógica de sockets, sincronización WebRTC, state

@@ -166,16 +166,21 @@ humClash/
 │   │   └── types.ts          # Tipos de TypeScript compartidos
 │   │
 │   └── store/                ← Estado global (Zustand)
+│       ├── useAuthStore.ts   # Apodo guest
 │       ├── useRoomStore.ts   # Estado de la sala
-│       └── useGameStore.ts   # Estado del juego
+│       └── useGameStore.ts   # Estado del juego (+ gameOver/rematch)
 │
 ├── server/                   ← Backend Node.js (corre aparte)
 │   └── src/
 │       ├── index.ts          # Punto de entrada del servidor
-│       ├── rooms/            # Gestor de salas
-│       ├── game-logic/       # Turnos, timers, puntuación, banco de canciones
+│       ├── rooms/            # Gestor de salas (+ *.test.ts)
+│       ├── game-logic/       # Turnos, timers, scoring, SongBank (+ *.test.ts)
 │       ├── moderation/       # Registro de reportes
-│       └── security/         # Rate limiting
+│       ├── security/         # Rate limiting
+│       └── __tests__/        # Integration Socket.io + helpers
+│
+├── .github/workflows/        ← CI: lint + tests en cada push/PR
+│   └── test.yml
 │
 ├── assets/                   ← Imágenes, iconos, fuentes
 ├── app.json                  ← Configuración de Expo
@@ -386,11 +391,15 @@ npx expo start --dev-client  # Servidor de desarrollo para el APK
 npx eas build --platform android --profile development
 npx eas build --platform android --profile development --clear-cache
 
-# Tests del backend
-cd server && npm test
+# Tests (Vitest)
+npm test                # Unit client (stores, timerSync, etc.)
+npm run test:server     # Unit + integration del backend (~45s)
+npm run test:all        # Client + server
+npm run test:watch      # Vitest en modo watch (client)
 
-# TypeScript check (frontend)
-npm run lint
+# TypeScript check
+npm run lint            # tsc --noEmit (client)
+npm --prefix server run lint
 
 # Instalar dependencias después de cambiar package.json
 npm install             # En la raíz (frontend)
@@ -405,6 +414,20 @@ git add .
 git commit -m "feat(scope): descripcion"
 git push -u origin feature/nombre-feature
 ```
+
+### 7.1 Tests — dónde viven
+
+| Qué | Dónde | Tool |
+|---|---|---|
+| Unit server (Scoring, RoomManager, GameSession…) | `server/src/**/**.test.ts` colocalizados | Vitest |
+| Integration Socket.io | `server/src/__tests__/integration/` | Vitest + server efímero |
+| Unit client (stores, timerSync) | `src/**/**.test.ts` | Vitest |
+| E2E en device | Aún no (Maestro planeado post-APK estable) | — |
+| CI automático | `.github/workflows/test.yml` | GitHub Actions |
+
+**GitHub Actions:** cada push o PR a `develop`/`main` corre lint + tests en la nube.
+Si algo se rompe, el check queda en rojo sin que tengas que acordarte de correr `npm run test:all` a mano.
+No reemplaza probar audio/UI en el celular (eso es manual / Fase 8).
 
 ---
 
