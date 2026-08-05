@@ -574,3 +574,22 @@ en vivo WebRTC (Agora/LiveKit) como pipeline de juego.
 
 **Nota:** entradas anteriores de este archivo que asumen Agora como stack vigente
 quedan como **historial**. La fuente de verdad actual es esta entrada + `AGENTS.md`.
+
+---
+
+## 2026-08-05 — Implementación inicial `feature/voice-recording`
+
+**Branch:** `feature/voice-recording` (desde `develop` post-docs).
+
+**Hecho:**
+- Server: `clipStore` + `POST/GET /clips` (base64, TTL, cleanup por sala).
+- `GameSession`: sin Agora; `clip_uploaded` → `clip_ready` + timer guess; hum timeout si no hay clip.
+- Client: `expo-audio`, `useHumRecorder`, `useClipPlayback`, UI hummer/guesser, mute = playback local.
+- Quitado `react-native-agora`, `agora-access-token`, carpeta `voice-stream`.
+- Tests: unit + integration actualizados (61 server pass, 11 client pass). `tsc` OK.
+
+**Pendiente device:**
+1. Rebuild Dev Client (nativo expo-audio).
+2. Partida 2 celus: grabar → subir → reproducir → adivinar; re-listen 1×; mute.
+3. Medir upload en 4G LatAm.
+4. Luego: `feature/song-fair-play`.

@@ -4,7 +4,6 @@ import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState } from "react";
 import Animated from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { socket } from "../src/shared/lib/socket-client";
 import { useGameRound } from "../src/features/game-round/hooks/useGameRound";
 import { TimerBar } from "../src/features/game-round/components/TimerBar";
 import { HummerView } from "../src/features/game-round/components/HummerView";
@@ -14,8 +13,12 @@ import { RoundProgressDots } from "../src/features/game-round/components/RoundPr
 import { CountdownOverlay } from "../src/features/game-round/components/CountdownOverlay";
 import { RoleBackground } from "../src/features/game-round/components/RoleBackground";
 import { useScreenShake } from "../src/features/game-round/animations/screenShake";
-import { MuteButton, ReportButton } from "../src/features/moderation/components/MuteButton";
-import { useAgora } from "../src/features/voice-stream/hooks/useAgora";
+import {
+  MuteButton,
+  ReportButton,
+} from "../src/features/moderation/components/MuteButton";
+import { useHumRecorder } from "../src/features/voice-recording/hooks/useHumRecorder";
+import { useClipPlayback } from "../src/features/voice-recording/hooks/useClipPlayback";
 
 export default function GameScreen() {
   const { roomCode, nickname } = useLocalSearchParams<{
@@ -23,11 +26,16 @@ export default function GameScreen() {
     nickname: string;
   }>();
 
-  const game = useGameRound(String(roomCode ?? ""));
-  const agora = useAgora(String(roomCode ?? ""), game.myRole);
+  const code = String(roomCode ?? "");
+  const game = useGameRound(code);
+  const isHummer = game.myRole === "hummer";
+  const isGuesser = game.myRole === "guesser";
+
+  const recorder = useHumRecorder(code, isHummer && game.phase === "playing");
+  const playback = useClipPlayback(isGuesser ? game.clipUrl : null);
+
   const { animatedStyle: shakeStyle, trigger: shake } = useScreenShake();
   const [showCountdown, setShowCountdown] = useState(false);
-  const [showTransition, setShowTransition] = useState("");
   const [pastResults, setPastResults] = useState<(boolean | null)[]>([]);
 
   useEffect(() => {
@@ -50,8 +58,7 @@ export default function GameScreen() {
 
   useEffect(() => {
     if (game.roundResult) {
-      const newResults = [...pastResults, game.roundResult.correct];
-      setPastResults(newResults);
+      setPastResults((prev) => [...prev, game.roundResult!.correct]);
     }
   }, [game.roundResult]);
 
@@ -76,7 +83,10 @@ export default function GameScreen() {
   if (game.phase === "lobby" || game.phase === "countdown") {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <CountdownOverlay onFinish={() => setShowCountdown(false)} tick={game.countdownValue} />
+        <CountdownOverlay
+          onFinish={() => setShowCountdown(false)}
+          tick={game.countdownValue}
+        />
       </SafeAreaView>
     );
   }
@@ -89,13 +99,13 @@ export default function GameScreen() {
             <View style={styles.hudTop}>
               <View style={styles.hudLeft}>
                 <MuteButton
-                  roomCode={String(roomCode ?? "")}
+                  roomCode={code}
                   targetNickname={game.opponentNickname}
-                  onMuteRemote={agora.muteRemote}
-                  onUnmuteRemote={agora.unmuteRemote}
+                  onMuteRemote={playback.mute}
+                  onUnmuteRemote={playback.unmute}
                 />
                 <ReportButton
-                  roomCode={String(roomCode ?? "")}
+                  roomCode={code}
                   targetNickname={game.opponentNickname}
                 />
               </View>
@@ -122,36 +132,43 @@ export default function GameScreen() {
           </View>
 
           <View style={styles.gameArea}>
-            {game.myRole === "hummer" && game.currentSong ? (
+            {isHummer && game.currentSong ? (
               <HummerView
                 song={game.currentSong}
                 timeLeft={game.timeLeft}
                 timeLimit={game.timeLimit}
-                onStartHumming={game.startHumming}
                 roundNumber={game.currentRound}
                 opponentNickname={game.opponentNickname}
-                isMuted={agora.isMuted}
-                isSpeaking={agora.isSpeaking}
-                agoraError={agora.error}
-                onToggleMute={agora.toggleMute}
+                recordPhase={recorder.phase}
+                recordCountdown={recorder.countdown}
+                meteringLevel={recorder.meteringLevel}
+                recordError={recorder.error}
+                onStartTake={recorder.startTake}
+                onStopTake={recorder.stopTake}
               />
-            ) : game.myRole === "guesser" ? (
+            ) : isGuesser ? (
               <GuesserView
                 options={game.options}
                 timeLeft={game.timeLeft}
                 timeLimit={game.timeLimit}
                 hintVisible={game.hintVisible}
                 currentSong={game.currentSong}
-                rehumAvailable={game.rehumAvailable}
                 hasSubmitted={game.hasSubmitted}
-                lastGuess={game.lastGuessCorrect === true ? "correct" : game.lastGuessCorrect === false ? "incorrect" : null}
+                lastGuess={
+                  game.lastGuessCorrect === true
+                    ? "correct"
+                    : game.lastGuessCorrect === false
+                      ? "incorrect"
+                      : null
+                }
                 roundNumber={game.currentRound}
                 opponentNickname={game.opponentNickname}
                 onSubmitGuess={game.submitGuess}
-                onRequestRehum={game.requestRehum}
-                remoteAudioLevel={agora.remoteAudioLevel}
-                isAudioActive={agora.isJoined}
-                agoraError={agora.error}
+                clipReady={game.clipReady}
+                isAudioActive={playback.isAudioActive || playback.isPlaying}
+                audioError={playback.error}
+                relistenLeft={playback.relistenLeft}
+                onRelisten={playback.relisten}
               />
             ) : (
               <View style={styles.waiting}>

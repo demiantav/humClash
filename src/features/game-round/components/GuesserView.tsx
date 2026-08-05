@@ -1,16 +1,9 @@
 import { View, Text, StyleSheet } from "react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  FadeIn,
-  SlideInUp,
-} from "react-native-reanimated";
-import { useEffect, useState } from "react";
+import Animated, { FadeIn, SlideInUp } from "react-native-reanimated";
 import { Song } from "../../../shared/types";
 import { OptionButton } from "./OptionButton";
 import { Button } from "../../../shared/components/Button";
-import { RemoteAudioStatus } from "../../voice-stream/AudioIndicator";
+import { ClipStatus } from "../../voice-recording/components/ClipStatus";
 
 interface GuesserViewProps {
   options: Song[];
@@ -18,16 +11,16 @@ interface GuesserViewProps {
   timeLimit: number;
   hintVisible: boolean;
   currentSong: Song | null;
-  rehumAvailable: boolean;
   hasSubmitted: boolean;
   lastGuess?: "correct" | "incorrect" | null;
   roundNumber: number;
   opponentNickname: string;
   onSubmitGuess: (songId: string) => void;
-  onRequestRehum: () => void;
-  remoteAudioLevel: number;
+  clipReady: boolean;
   isAudioActive: boolean;
-  agoraError: string | null;
+  audioError: string | null;
+  relistenLeft: number;
+  onRelisten: () => void;
 }
 
 export function GuesserView({
@@ -36,16 +29,16 @@ export function GuesserView({
   timeLimit,
   hintVisible,
   currentSong,
-  rehumAvailable,
   hasSubmitted,
   lastGuess,
   roundNumber,
   opponentNickname,
   onSubmitGuess,
-  onRequestRehum,
-  remoteAudioLevel,
+  clipReady,
   isAudioActive,
-  agoraError,
+  audioError,
+  relistenLeft,
+  onRelisten,
 }: GuesserViewProps) {
   const timerRatio = timeLimit > 0 ? timeLeft / timeLimit : 1;
 
@@ -57,22 +50,20 @@ export function GuesserView({
     );
   }
 
-  const rows = [
-    options.slice(0, 2),
-    options.slice(2, 4),
-  ];
+  const rows = [options.slice(0, 2), options.slice(2, 4)];
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.roundLabel}>Ronda {roundNumber}</Text>
         <Text style={styles.listeningText}>
-          Escuchando a {opponentNickname}...
+          {clipReady ? `Escuchando a ${opponentNickname}...` : `Esperando a ${opponentNickname}...`}
         </Text>
-        <RemoteAudioStatus
+        <ClipStatus
           nickname={opponentNickname}
           isActive={isAudioActive}
-          error={agoraError}
+          isWaiting={!clipReady}
+          error={audioError}
         />
       </View>
 
@@ -89,7 +80,7 @@ export function GuesserView({
                   title={song.title}
                   artist={song.artist}
                   onPress={() => onSubmitGuess(song.id)}
-                  disabled={hasSubmitted}
+                  disabled={hasSubmitted || !clipReady}
                   state={
                     hasSubmitted && lastGuess === "correct"
                       ? "correct"
@@ -112,15 +103,15 @@ export function GuesserView({
           </Animated.View>
         )}
 
-        {rehumAvailable && !hasSubmitted && timeLeft < timeLimit - 5 && (
-          <Button variant="ghost" size="sm" onPress={onRequestRehum}>
-            <Text style={styles.rehumText}>Tarareá de nuevo</Text>
+        {clipReady && relistenLeft > 0 && !hasSubmitted && (
+          <Button variant="ghost" size="sm" onPress={onRelisten}>
+            <Text style={styles.relistenText}>Escuchar de nuevo ({relistenLeft})</Text>
           </Button>
         )}
 
         <View style={styles.timerSection}>
           <Text style={[styles.timerText, timerRatio < 0.3 && styles.timerCritical]}>
-            {timeLeft}s
+            {clipReady ? `${timeLeft}s` : "—"}
           </Text>
         </View>
       </View>
@@ -194,7 +185,7 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 14,
   },
-  rehumText: {
+  relistenText: {
     color: "#7C4DFF",
     fontSize: 14,
     fontWeight: "600",

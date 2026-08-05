@@ -2,7 +2,6 @@ import { Server, Socket } from "socket.io";
 import { RoomManager } from "../rooms/RoomManager.js";
 import { GameSession } from "./GameSession.js";
 import { TurnManager } from "./TurnManager.js";
-import { generateAgoraToken } from "./AgoraTokenGenerator.js";
 import { addReport } from "../moderation/ReportHandler.js";
 
 const gameSessions = new Map<string, GameSession>();
@@ -20,7 +19,6 @@ function createSession(roomManager: RoomManager, roomCode: string, io: Server): 
     turnManager,
     (event, data) => io.to(roomCode).emit(event, data),
     (playerId, event, data) => io.to(playerId).emit(event, data),
-    generateAgoraToken,
   );
   gameSessions.set(roomCode, session);
   return session;
@@ -73,17 +71,25 @@ export function registerGameHandlers(
   socket: Socket,
   roomManager: RoomManager,
 ) {
-  socket.on("start_humming", ({ roomCode }: { roomCode: string }) => {
-    const session = getSession(roomCode);
-    if (!session) return;
-    session.startGuessing();
-  });
-
-  socket.on("request_rehum", ({ roomCode }: { roomCode: string }) => {
-    const session = getSession(roomCode);
-    if (!session) return;
-    session.requestRehum(socket.id);
-  });
+  socket.on(
+    "clip_uploaded",
+    ({
+      roomCode,
+      clipId,
+      clipUrl,
+    }: {
+      roomCode: string;
+      clipId: string;
+      clipUrl: string;
+    }) => {
+      const session = getSession(roomCode);
+      if (!session) return;
+      const ok = session.onClipUploaded(socket.id, clipId, clipUrl);
+      if (!ok) {
+        socket.emit("clip_rejected", { roomCode, reason: "invalid_clip_or_role" });
+      }
+    },
+  );
 
   socket.on(
     "submit_guess",

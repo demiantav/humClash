@@ -10,7 +10,6 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_AGORA_APP_ID": "${EXPO_PUBLIC_AGORA_APP_ID}",
         "EXPO_PUBLIC_SERVER_URL": "${EXPO_PUBLIC_SERVER_URL}"
       }
     },
