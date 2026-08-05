@@ -1,7 +1,7 @@
 # Guía de Estudio — HumClash
 
 > Una guía para entender cada tecnología y carpeta del proyecto, escrita para alguien
-> que nunca tocó React Native, Expo, ni WebRTC.
+> que nunca tocó React Native, Expo, ni pipelines de audio mobile.
 
 ---
 
@@ -9,8 +9,9 @@
 
 El proyecto es una **app mobile** (iOS y Android) hecha con **JavaScript/TypeScript**.
 El frontend corre en el celular del usuario; el backend corre en un servidor y coordina
-las partidas. Se comunican en tiempo real vía WebSockets. El audio viaja directo de
-celular a celular vía WebRTC.
+las partidas. Se comunican en tiempo real vía WebSockets (Socket.io). El tarareo es un
+**clip grabado** (no stream en vivo): el hummer graba → se sube a storage efímero → el
+guesser lo reproduce.
 
 ---
 
@@ -41,7 +42,7 @@ celular a celular vía WebRTC.
 |---|---|
 | **Expo** | Es un "framework" sobre React Native. Te da herramientas pre-armadas para no configurar cosas dolorosas: compilar la app, acceder a la cámara/micrófono, manejar archivos, etc. |
 | **Expo Router** | Navegación basada en archivos. Creás un archivo `game.tsx` en la carpeta `app/` y automáticamente existe la ruta `/game`. No tenés que configurar rutas manualmente. |
-| **Expo Go vs Dev Client** | Expo Go es una app genérica que corre proyectos Expo sin compilar nada (útil para prototipado). Dev Client es una build personalizada que incluye módulos nativos que Expo Go no tiene (como Agora para audio). Nosotros usamos **Dev Client** porque Agora requiere código nativo. |
+| **Expo Go vs Dev Client** | Expo Go corre proyectos sin build custom. Dev Client es una build con módulos nativos extra. Hoy el proyecto usa Dev Client; con el pipeline de **clips** (APIs Expo de audio) puede re-evaluarse si hace falta Dev Client o alcanza Go. |
 | **EAS (Expo Application Services)** | Servicio en la nube de Expo que compila la app por vos. Le mandás el código, ellos lo buildan para Android/iOS y te devuelven un APK/IPA. No necesitás tener Android Studio ni Xcode bien configurados. |
 | **eas.json** | Configuración de builds de EAS. Define perfiles (development, preview, production), tipo de build (APK, AAB), y variables de entorno. |
 | **app.json** | Archivo central de configuración de la app: nombre, ícono, permisos, bundle ID, plugins de Expo. Es como el manifiesto de la aplicación. |
@@ -83,21 +84,20 @@ celular a celular vía WebRTC.
 - `server/src/moderation/` — reportes y moderación
 - `src/shared/lib/socket-client.ts` — cliente Socket.io en la app
 
-### 2.6 Agora (audio en tiempo real)
+### 2.6 Audio del tarareo — clips (decisión 2026-08-05)
 
 | Concepto | Explicación |
 |---|---|
-| **WebRTC** | Tecnología para transmitir audio/video directamente entre navegadores/apps, sin pasar por un servidor central. Conexión P2P (peer-to-peer). |
-| **Agora** | Servicio comercial que facilita WebRTC. Te da un SDK (kit de desarrollo) para React Native. Maneja la parte difícil: NAT traversal, codecs, calidad de red. |
-| **Agora App ID** | Identificador de tu aplicación en Agora. Es público (la app lo necesita para conectarse). Pero NUNCA va en el código cliente directamente — lo pasamos como variable de entorno en el build de EAS. |
-| **Token de Agora** | Contraseña temporal que autoriza a un usuario a entrar a un "canal" de audio. Se genera en **nuestro backend**, nunca en el cliente. El token determina si el usuario puede hablar (PUBLISHER) o solo escuchar (SUBSCRIBER). |
-| **Rol PUBLISHER / SUBSCRIBER** | El hummer es PUBLISHER: transmite audio. El guesser es SUBSCRIBER: solo escucha. Esto se fuerza desde el servidor — el guesser no puede transmitir aunque quiera. |
-| **Canal** | Una "sala de audio" en Agora. Coincide con el código de sala de nuestro juego. |
+| **Clip / take** | Archivo de audio corto (~20s máx.) que el hummer graba en su celular. |
+| **Upload efímero** | El clip se sube a storage solo para esa ronda/partida y se **borra** después (TTL corto). No es un feed ni un archivo permanente. |
+| **Playback** | El guesser descarga o streamea ese archivo y lo escucha para adivinar. |
+| **Por qué no WebRTC/Agora** | Antes el proyecto usaba Agora (audio en vivo P2P). Se deprecó: más simple, más barato, habilita async a futuro, menos bugs de red. El código viejo puede vivir un tiempo en `voice-stream/` hasta borrarlo en la migración. |
+| **Storage** | Proveedor TBD (Supabase Storage, S3, R2, o el backend recibe el blob en un MVP chico). URLs de corta vida si aplica. |
 
-**Archivos:**
-- `src/features/voice-stream/hooks/useAgora.ts` — hook para manejar Agora en la app
-- `src/features/voice-stream/hooks/useAgora.web.ts` — versión "falsa" para web (no tiene micrófono)
-- `server/src/rooms/` — generación de tokens de Agora (del lado del servidor)
+**Archivos (objetivo post-migración):**
+- `src/features/voice-recording/` — grabar, subir, reproducir
+- Eventos socket del game-round que avisan “clip listo” / URL o id del take
+- Legado (a eliminar): `src/features/voice-stream/` (Agora)
 
 ### 2.7 React Native Reanimated (animaciones)
 
@@ -152,15 +152,15 @@ humClash/
 │   │   │   ├── hooks/        # Lógica reutilizable (useTimer, etc.)
 │   │   │   ├── animations/   # Animaciones Reanimated
 │   │   │   └── socket-events.ts  # Eventos Socket.io de esta feature
-│   │   ├── voice-stream/     # Integración Agora WebRTC
-│   │   │   └── hooks/        # useAgora, useAgora.web
-│   │   ├── moderation/       # Silenciar / reportar jugador
+│   │   ├── voice-recording/  # Clips: grabar, upload, playback (stack actual)
+│   │   ├── voice-stream/     # LEGADO Agora — a eliminar en la migración
+│   │   ├── moderation/       # Silenciar playback / reportar
 │   │   ├── scoring/          # Cálculo de puntajes
 │   │   └── results/          # Pantalla de resultados
 │   │
 │   ├── shared/               ← Código compartido entre features
 │   │   ├── components/       # UI genérica (botones, modales)
-│   │   ├── lib/              # Clientes (socket, Agora), utilidades
+│   │   ├── lib/              # socket-client, storage-client, utilidades
 │   │   │   ├── socket-client.ts   # Conexión Socket.io
 │   │   │   └── timerSync.ts       # Sincronización de timer
 │   │   └── types.ts          # Tipos de TypeScript compartidos
@@ -188,7 +188,7 @@ humClash/
 ├── package.json              ← Dependencias y scripts del frontend
 ├── server/package.json       ← Dependencias y scripts del backend
 ├── tsconfig.json             ← Configuración de TypeScript
-└── AGENTS.md / DECISIONS.md  ← Documentación del proyecto
+└── PRODUCT.md / AGENTS.md / DECISIONS.md  ← Producto + convenciones + bitácora
 ```
 
 ### ¿Por qué esta estructura?
@@ -198,7 +198,7 @@ juego pertenece?"** — no "¿qué tipo de archivo es?".
 
 - Todo lo relacionado con crear/unirse a salas → `matchmaking/`
 - Todo lo del turno de tararear/adivinar → `game-round/`
-- Todo lo de transmitir audio → `voice-stream/`
+- Todo lo de grabar/reproducir el tarareo → `voice-recording/` (legado Agora → `voice-stream/`)
 - Cosas que usan varias features → `shared/`
 
 ---
@@ -245,18 +245,13 @@ Cliente (solo muestra lo que el servidor le dice):
 ### 4.3 Ejemplo: flujo de un turno
 
 ```
-1. Servidor emite: round_start { song, options, hummer, guesser, timeLeft }
-2. Cliente Hummer: muestra canción, activa micrófono (Agora PUBLISHER)
-3. Cliente Guesser: muestra 4 opciones, solo escucha (Agora SUBSCRIBER)
-4. Servidor emite timer_sync cada 1s: { timeLeft, serverTimestamp }
-5. Clientes: actualizan barra de tiempo con animación
-6. Si guesser elige opción:
-   guesser emite: submit_guess { songId }
-   Servidor emite: guess_result { correct, score, correctSongId }
-7. Si se acaba el tiempo sin respuesta:
-   Servidor emite: round_timeout { correctSongId }
-8. Servidor emite: round_result { scores, nextRound }
-9. Volver a paso 1 con roles invertidos (o game_over si 5 rondas)
+1. Servidor: turno hum (fair-play: 1 de 3 canciones; hummer elige)
+2. Cliente Hummer: countdown → graba clip (~20s) → upload → avisa listo
+3. Servidor: notifica al guesser (URL/id del clip + 4 opciones)
+4. Cliente Guesser: reproduce clip → elige opción (re-listen 1× si aplica)
+5. Servidor emite timer_sync / guess_result / round_result
+6. Roles se invierten o game_over a las 5 rondas
+(Detalle de nombres de eventos se define en la feature voice-recording + game-round.)
 ```
 
 ---
@@ -270,7 +265,7 @@ con `use`. Ejemplos:
 
 - `useState(valorInicial)` → crea una variable que React observa. Si cambia, re-renderiza.
 - `useEffect(callback, dependencias)` → ejecuta código cuando algo cambia.
-- `useAgora(channelName)` → nuestro hook custom que maneja la conexión de audio.
+- `useVoiceRecording()` / similar → hook de grabación y playback de clips (post-migración).
 
 Regla: los hooks solo se pueden usar dentro de componentes React o dentro de otros hooks.
 
@@ -362,11 +357,11 @@ Si nunca tocaste estas tecnologías, este orden te va a servir:
 3. Conectar frontend con backend en tiempo real
 
 ### Semana 6 — Conceptos específicos del proyecto
-1. Leer `AGENTS.md` y `DECISIONS.md`
+1. Leer `PRODUCT.md`, `AGENTS.md` y `DECISIONS.md`
 2. Seguir el flujo del juego en el código (Home → CreateRoom → Lobby → Game → Results)
 3. Entender cómo el servidor controla el estado y el cliente solo muestra
 4. Reanimated: withSpring, useSharedValue, useAnimatedStyle
-5. Agora: concepto de canales, tokens, PUBLISHER/SUBSCRIBER
+5. Clips: grabar → upload efímero → playback; privacidad/TTL (Agora = legado, no estudiar como stack actual)
 
 ### Recursos gratuitos recomendados
 - **JavaScript moderno:** javascript.info (en español)

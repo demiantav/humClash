@@ -1,27 +1,32 @@
 # AGENTS.md — HumClash
 
 Este archivo le da contexto al agente (OpenCode) sobre el proyecto. Léelo antes de tocar código.
-Ver también `DECISIONS.md` para el historial de decisiones entre sesiones (OpenCode no
-tiene memoria propia — este par de archivos la reemplaza).
+
+| Archivo | Rol |
+|---------|-----|
+| `PRODUCT.md` | Producto / GDD (fantasía, loop, fair-play, roadmap de valor) |
+| `DECISIONS.md` | Bitácora de decisiones entre sesiones |
+| `AGENTS.md` | Este archivo: stack, arquitectura, convenciones para el agente |
+
+OpenCode no tiene memoria propia — este trío la reemplaza.
 
 ## 1. Qué es este proyecto
 
-Juego social 1v1 en tiempo real: un jugador tararea una canción por voz en vivo, el otro
-adivina entre 4 opciones antes de que se acabe el tiempo. 5 rondas por partida, roles
-invertidos cada ronda. MVP validando una hipótesis simple: ¿es divertido tararear y
-adivinar canciones contra un amigo en tiempo real?
+Juego social 1v1: un jugador tararea una canción con su voz, el otro adivina entre 4
+opciones. 5 rondas por partida, roles invertidos cada ronda. Hipótesis a validar: ¿es
+divertido tararear y adivinar contra otra persona de forma que quieras la siguiente ronda?
+
+**Fantasía de producto:** tu voz es el challenge. No somos Preguntados con mic ni un
+radio-quiz con tracks licenciados. Ver `PRODUCT.md` para posicionamiento completo.
 
 **Diferencial clave:** el audio lo genera el propio jugador tarareando — no se reproduce
-audio grabado con derechos de autor. Esto evita la carga de licencias musicales que sí
-tienen competidores como SongPop o Guessong, y es la ventaja competitiva #1 del producto.
-No perder esto de vista al diseñar features nuevas: cualquier feature que implique
-reproducir audio grabado de una canción real rompe este diferencial y abre un problema
-legal — evitarlo.
+audio grabado de una canción real con derechos de autor. Esto evita licencias (SongPop /
+Guessong) y es la ventaja #1. Cualquier feature que reproduzca el master de una canción
+real rompe el diferencial — evitarlo.
 
-**Equipo:** 1 solo desarrollador. Todas las decisiones de alcance deben asumir esta
-restricción. No hay diseñador visual ni motion designer dedicado.
+**Equipo:** 1 solo desarrollador. Todas las decisiones de alcance asumen esa restricción.
 
-**Nombre definitivo:** HumClash (el repo ya lo refleja).
+**Nombre definitivo:** HumClash.
 
 ## 2. Público objetivo y fases de lanzamiento
 
@@ -32,48 +37,52 @@ restricción. No hay diseñador visual ni motion designer dedicado.
 - **Fase 2 (escala):** USA y Europa. Requiere mayor pulido de UX/onboarding (expectativa
   más alta en estos mercados) y banco de canciones localizado a tendencias locales.
   No lanzar acá hasta tener señal clara de retención en Fase 1.
-- **Monetización inicial:** publicitaria (banner/rewarded ads), sin IAP agresivo en el
-  MVP. Evaluar IAP (paquetes temáticos de canciones) recién en Fase 2, una vez validado
-  el loop de juego.
+- **Monetización:** sin IAP agresivo ni ads en medio del turno mientras se valida el loop.
+  Ads solo en bordes (fin de partida / rewarded) post-señal de diversión. IAP futuro =
+  packs temáticos de *títulos/clima* (metadatos), nunca masters de audio. Ver `PRODUCT.md`.
 - **Prioridad de matchmaking en MVP:** salas privadas por código (invitar amigo) por
   encima del matchmaking aleatorio. Con poca base de usuarios al inicio, el matchmaking
   random puede dejar a la gente esperando sin encontrar rival — mata la retención en la
   primera experiencia. El aleatorio queda como secundario hasta haber masa crítica online.
+- **Norte de hábito (roadmap):** turnos async + push (aprendizaje de Preguntados). El
+  pipeline de **clips** lo habilita; async completo (DB, push, multi-duelo) sigue siendo
+  capa posterior — ver `PRODUCT.md` §10 y `DECISIONS.md` 2026-08-05.
 
 ## 3. Stack tecnológico
 
-- **Frontend:** React Native + Expo (iOS y Android desde una sola base de código). Usar
-  Expo Dev Client (no Expo Go) porque Agora requiere módulos nativos.
-- **Backend de juego:** Node.js + Socket.io — gestor de salas, lógica de turnos,
-  temporizadores, puntuación. Hosting en Render (free tier para MVP).
-- **Voz en tiempo real:** Agora.io (WebRTC) — transmisión de audio P2P de baja latencia.
-  Tokens generados por el backend (App ID nunca sale del servidor). Solo el jugador con
-  rol "hummer" transmite — controlado server-side. Confirmar cobertura/latencia real en
-  los países de lanzamiento de Fase 1 durante la Fase 8 (testing).
-- **Estado global:** Zustand (ligero, sin providers, actualizaciones rápidas).
-- **Navegación:** Expo Router (file-based routing).
-- **Motion/animación:** React Native Reanimated para el MVP. Rive se evalúa post-MVP
-  cuando haya un `.riv` con state machines listo. Con Reanimated se implementan:
-  screen shake, confetti, combo counter, transiciones slam/zoom, timer bar animada,
-  squash & stretch en botones.
-- **Sonidos:** expo-av para efectos de sonido (correcto, incorrecto, tick, victoria, etc.).
-- **Haptics:** expo-haptics sincronizados con cada micro-interacción.
-- **Base de datos:** NINGUNA en el MVP. Todo en memoria del servidor. Salas, turnos,
-  puntajes y reportes viven durante la sesión y mueren al terminar.
-- **Costo de infraestructura de voz:** Agora cobra ~$0.99 por 1,000 minutos. Con 2
-  jugadores × 5 rondas × ~20s de audio activo = ~3.3 min/partida ≈ $1 por cada ~300
-  partidas.
+- **Frontend:** React Native + Expo (iOS y Android). Expo Dev Client mientras haya
+  módulos nativos de grabación/playback que lo requieran; re-evaluar Expo Go si el
+  pipeline de audio queda 100% en APIs compatibles con Go.
+- **Backend de juego:** Node.js + Socket.io — salas, turnos, timers, puntuación,
+  orquestación de clips (URL/id del take). Hosting previsto: Render (free tier MVP).
+- **Voz (decisión cerrada 2026-08-05): clips, no WebRTC.**
+  - Hummer: graba localmente (límite estricto ~20s) → upload a storage efímero → listo.
+  - Guesser: descarga/stream del clip y reproduce; no hay mic en vivo del rival.
+  - **Agora / WebRTC: deprecado.** No nuevas features sobre `voice-stream`/Agora. Código
+    legado se elimina o aísla en la migración (`feature/voice-recording`).
+  - Lib de grabación/playback: preferir APIs Expo estables (expo-audio / expo-av según
+    compat RN del proyecto). Elegir en la rama de migración; no inventar un stack paralelo.
+  - Storage: proveedor TBD (Supabase Storage, S3, R2, o backend que reciba el blob en MVP
+    chico). **TTL corto** — borrar al fin de ronda o de partida (máx. horas, no archivo
+    permanente). Medir costo storage/egress antes de escalar.
+- **Estado global:** Zustand.
+- **Navegación:** Expo Router (file-based).
+- **Motion:** React Native Reanimated (MVP). Rive post-MVP si hay `.riv` con state machines.
+- **Sonidos SFX:** mismos módulos de audio que playback de clips cuando sea posible.
+  Nunca para masters de canciones reales.
+- **Haptics:** expo-haptics en micro-interacciones.
+- **Base de datos:** NINGUNA mientras el MVP sea síncrono en sala (clips en vuelo +
+  memoria). Async/multi-duelo del roadmap **sí** requerirá persistencia — decisión aparte.
 
 ## 4. Memoria entre sesiones
 
-OpenCode no recuerda nada entre sesiones por defecto. Este archivo es estático.
+OpenCode no recuerda nada entre sesiones por defecto.
 
-- Decisiones de arquitectura, cambios de alcance o pendientes importantes van a
-  `DECISIONS.md` (raíz del repo).
-- Al cerrar una sesión de trabajo significativa: pedirle al agente "Agregá un resumen de
-  lo decidido/pendiente en DECISIONS.md".
-- Al abrir una sesión nueva: pedirle que lea `AGENTS.md` + `DECISIONS.md` antes de tocar
-  código.
+- Producto / reglas de juego → `PRODUCT.md`
+- Arquitectura, alcance, pendientes de sesión → `DECISIONS.md`
+- Al cerrar sesión significativa: actualizar `DECISIONS.md` (y `PRODUCT.md` si cambió
+  una regla de producto).
+- Al abrir sesión: leer `AGENTS.md` + `PRODUCT.md` + `DECISIONS.md` antes de tocar código.
 
 ## 5. Screaming Architecture
 
@@ -84,41 +93,32 @@ está hecha. Agrupar primero por feature/módulo de juego, no por tipo técnico.
 src/
   features/
     auth-guest/            # apodo temporal, sin registro en MVP
-      components/
+    matchmaking/           # salas privadas (prioridad) + lobby + géneros (modelo A)
+    game-round/            # loop: pick canción (1 de 3) + hum + guess + combo
+      components/          # SongPickCards, SkipSong, TimerBar, opciones, etc.
       hooks/
-    matchmaking/           # crear sala privada (prioridad MVP) + random (secundario)
-      components/
-      hooks/
+      animations/
       socket-events.ts
-    game-round/            # bucle principal: turno de tarareo + turno de adivinanza
-      components/
-      hooks/
-      animations/           # animaciones Reanimated (screen shake, confetti, combo counter)
-      socket-events.ts
-    voice-stream/           # integración WebRTC (Agora)
-      hooks/
-    moderation/             # botones silenciar/reportar en HUD
-      components/
-    scoring/                # cálculo de puntos según velocidad de respuesta
-      hooks/
-    results/                # pantalla de resultados + revancha
-      components/
-      animations/           # confetti, festejo de victoria
+    voice-recording/       # grabar clip, upload, playback (reemplaza voice-stream/Agora)
+    moderation/            # silenciar playback local / reportar take
+    scoring/
+    results/               # confetti, tabla, revancha
   shared/
-    components/             # UI genérica (botones, modals, HUD base)
-    lib/
-      socket-client.ts
-      agora-client.ts
+    components/
+    lib/                   # socket-client, storage-client
     types.ts
 server/
-  rooms/                    # gestor de salas Socket.io
-  game-logic/                # turnos, temporizadores, puntuación, SongBank (30 canciones)
-  moderation/                 # reportar/silenciar jugador (obligatorio desde MVP)
-  security/                  # rate limiting por IP
+  rooms/
+  game-logic/              # turnos, timers, score, SongBank, pool géneros, pick 1 de 3, clip refs
+  moderation/
+  security/
+  # (opcional) storage signed URLs / cleanup TTL
+PRODUCT.md
 DECISIONS.md
+AGENTS.md
 ```
 
-Regla simple: si dudás dónde va un archivo, preguntate "¿a qué parte del loop de juego
+Regla: si dudás dónde va un archivo, preguntate "¿a qué parte del loop de juego
 pertenece?" — no "¿qué tipo de archivo es?".
 
 ## 6. Dirección de diseño — motion / gaming / arcade
@@ -145,16 +145,14 @@ cumple eso, meterle toda la energía posible; si es navegación estática, mante
 
 ## 7. Moderación (obligatorio desde el MVP, no opcional)
 
-Hay voz en vivo entre desconocidos. Todo turno debe tener acceso visible a
-reportar/silenciar al otro jugador. No se lanza sin esto, ni siquiera en la versión de
-prueba con 50 usuarios.
+Hay voz entre jugadores. Todo turno con audio debe tener acceso visible a
+reportar/silenciar. No se lanza sin esto.
 
-- **Silenciar:** toggle local (corta audio entrante vía Agora `muteRemoteAudioStream`).
-  El jugador muteado NO sabe que fue muteado — evita represalias.
-- **Reportar:** botón de bandera → modal con motivos rápidos → backend registra en array
-  en memoria (sin acción automática en MVP).
-- Ambos botones deben ser accesibles (touch target ≥ 48dp) pero discretos en la esquina
-  superior del HUD.
+- **Silenciar / pausar:** toggle local del **playback** del clip del rival. El otro no
+  sabe que lo silenciaron.
+- **Reportar:** bandera → motivos rápidos → backend registra (ideal: asociar id del take
+  mientras viva el TTL). Sin ban automático en MVP.
+- Touch target ≥ 48dp, discretos en esquina superior del HUD.
 
 ## 8. Git workflow
 
@@ -163,8 +161,8 @@ prueba con 50 usuarios.
 - `main` → producción. Solo se mergea desde `develop` vía PR. Nunca commits directos.
 - `develop` → integración. Todo entra vía PR desde una rama de feature/fix. Nunca commits
   directos.
-- `feature/<nombre-corto>` → una por feature (ej. `feature/matchmaking-salas-privadas`,
-  `feature/voice-stream-livekit`). Sale de `develop`, vuelve a `develop`.
+- `feature/<nombre-corto>` → una por feature (ej. `feature/voice-recording`,
+  `feature/song-fair-play`). Sale de `develop`, vuelve a `develop`.
 - `fix/<nombre-corto>` → una por bug (ej. `fix/combo-counter-desync`). Sale de `develop`,
   vuelve a `develop`.
 - `hotfix/<nombre-corto>` → solo bugs críticos ya en producción. Sale de `main`, mergea a
@@ -178,9 +176,9 @@ o `fix/*` correspondiente ANTES de cualquier cambio.
 
 ```
 feat(matchmaking): agregar salas privadas con código de invitación
-fix(voice-stream): corregir desconexión de audio al perder señal
-chore(deps): actualizar rive-react-native
-docs: actualizar DECISIONS.md con fases de lanzamiento
+feat(voice-recording): grabar clip de hum y reproducir en guesser
+chore(deps): quitar react-native-agora
+docs: actualizar DECISIONS.md con migración a clips
 ```
 
 Prefijos: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`. El scope es el nombre de la
@@ -205,9 +203,8 @@ No incluye e2e ni build EAS. Ver `npm run test:all` en local.
 
 ## 9. Modelos de IA recomendados (OpenCode Go, sin Claude)
 
-- **Principal / arquitectura difícil** (lógica de sockets, sincronización WebRTC, state
-  machines de Rive complejas): DeepSeek V4 Pro o GLM-5.2. Kimi K2.7 Code como segunda
-  opinión en refactors puntuales.
+- **Principal / arquitectura difícil** (sockets, pipeline de clips/upload, state machines):
+  DeepSeek V4 Pro o GLM-5.2. Kimi K2.7 Code como segunda opinión en refactors puntuales.
 - **Worker económico** (componentes repetitivos, CRUD, tests, scaffolding): DeepSeek V4
   Flash o Qwen3.6 Plus.
 - Repartir así por cómo se miden los límites de Go (uso equivalente en dólares, no
@@ -225,13 +222,18 @@ No incluye e2e ni build EAS. Ver `npm run test:all` en local.
 
 ## 11. No hacer
 
-- No reproducir audio grabado de canciones reales bajo ningún concepto (rompe el
-  diferencial legal/de costo del producto).
-- No lanzar sin el botón de reportar/silenciar visible en cada turno de voz.
+- No reproducir **masters** de canciones reales (copyright). El tarareo del jugador sí.
+- No volver a meter **Agora/WebRTC** como pipeline principal del MVP (decisión 2026-08-05).
+  Live “VIP” solo con decisión nueva en `DECISIONS.md`.
+- No lanzar sin reportar/silenciar (playback) visible en turno de voz.
 - No priorizar matchmaking aleatorio sobre salas privadas en el MVP.
-- No lanzar en Fase 2 (USA/Europa) sin señal de retención confirmada en Fase 1.
-- No asumir que la transmisión de voz es gratis — calcular costo por partida antes de
-  escalar usuarios.
+- No lanzar en Fase 2 sin retención confirmada en Fase 1.
+- No asumir storage/egress gratis — medir costo real antes de escalar.
+- No meter ads en medio del take o del guess.
+- No copiar coronas/ruleta de Preguntados como identidad del producto.
+- No feed público de tarareos ni retención indefinida de clips.
+- No implementar async/DB/push sin decisión explícita en `DECISIONS.md` (clips síncronos
+  en sala van primero).
 
 ## 12. Performance (obligatorio, no opcional)
 
@@ -239,53 +241,55 @@ El target de Fase 1 usa mayoritariamente Android gama media (Snapdragon 600/700,
 3-4 GB RAM). Lo que funcione fluido en simulación de iPhone no implica que sea
 usable en Moto G / Samsung A.
 
-- **Métrica objetivo:** ≥ 30 FPS en game screen con Agora transmitiendo + Reanimated
-  corriendo + Socket.io activo simultáneamente.
+- **Métrica objetivo:** ≥ 30 FPS en game screen con grabación o playback de clip +
+  Reanimated + Socket.io activos.
 - **RAM:** < 300 MB en uso pico para no ser matado por el SO.
 - **Timer sync:** el timer corre server-side (fuente de verdad). El cliente ajusta su
   barra con `serverTimestamp` del evento `timer_sync`, no con `setInterval` local.
   Tolerancia máxima de desync: ±200ms.
-- **Medir en dispositivo real** (no simulador) con Network Link Conditioner simulando
-  3G/4G de LatAm antes de asumir que "funciona".
-- **Reanimated corre en UI thread** (ok), Socket.io y Agora en JS thread. Cuidado con
-  saturar el bridge.
-- **Sonidos pregrabados** (expo-av), no sintetizados en runtime.
+- **Upload/playback en 3G/4G LatAm:** medir tiempo de subida de ~20s de audio y UX de
+  “subiendo…” / reintento; no asumir WiFi de oficina.
+- **Reanimated en UI thread** (ok); Socket.io y I/O de audio en JS thread — no saturar
+  el bridge.
+- **SFX y clips de hum** vía APIs de audio del stack elegido; no sintetizar SFX en runtime.
 
-## 13. Seguridad
+## 13. Seguridad y privacidad de voz
 
 Sin autenticación real, el MVP es vulnerable a abuso simple. Mitigaciones mínimas:
 
 - **Rate limiting** por IP en Socket.io: 3 creaciones de sala/min, 10 intentos de
-  join/min, 5 reportes/min.
-- **Agora App ID nunca en el cliente.** El token se genera en el backend y se envía
-  por Socket.io al unirse a una sala y al cambiar de rol.
-- **Solo el hummer transmite audio.** El servidor asigna `role: PUBLISHER` al hummer
-  y `role: SUBSCRIBER` al guesser en el token de Agora. El guesser está muteado por
-  el servidor, no depende de que el cliente "se comporte bien".
-- **No se graba audio.** Cloud recording de Agora explícitamente deshabilitado.
-- Disclaimer en onboarding: "No grabamos tu voz ni almacenamos audio de tus partidas."
+  join/min, 5 reportes/min; limitar uploads de clip por partida/IP.
+- **Clips efímeros:** storage con TTL; borrar al cerrar ronda/partida (o job de cleanup).
+  URLs firmadas de corta vida si el storage es público-por-URL.
+- **Solo el hummer genera el take** de esa ronda; el guesser solo reproduce la URL/id
+  que el servidor autoriza para esa sala/ronda.
+- **No reutilizar** credenciales de Agora (deprecado). Limpiar secrets Agora del cliente
+  y de EAS al migrar.
+- **Disclaimer onboarding (honesto):** el tarareo se sube solo para que el rival lo oiga
+  en esa ronda/partida y se borra después. No es feed público ni archivo permanente.
 
 ## 14. UX — Principios no negociables
 
 - **Todo botón tiene feedback inmediato:** scale-down (`withSpring` a 0.95) + haptic
   light + sonido pop. Sin excepciones.
-- **El silencio incomoda al tararear.** El hummer debe ver feedback de que su audio
-  está llegando (RemoteAudioStatus: "tu rival te escucha"). Cuenta regresiva 3-2-1
-  + mensaje "¡Dale! ¡No hay vergüenza!" antes de empezar.
-- **El guesser sin contexto se frustra.** A los 10s sin respuesta, mostrar hint
-  textual (campo `hint` del banco de canciones). Botón "Tarareá de nuevo" (1 vez
-  por ronda).
-- **Lobby interactivo:** mientras espera rival, mostrar logo respirando +
-  instrucciones en carrusel + "Compartí el código". Nada de texto estático.
-- **Indicador de progreso de partida:** 5 dots. El jugador debe saber en qué ronda
-  está y cuántas faltan.
-- **Revancha con narrativa:** "Perdiste la primera, ¿vas a dejar que gane la serie?"
-  — darle contexto competitivo. Siempre mostrar un dato positivo al perdedor
-  ("Adivinaste 2 en menos de 3 segundos").
-- **Cambio de rol dramático:** transición slam/zoom + cambio de color de fondo
-  (azul=hummer, naranja=guesser) + whoosh + haptic.
-- **Timer últimos 3s intenso:** barra parpadea rojo, número escala up, haptics
-  heartbeat. Que el jugador Sienta la urgencia.
+- **Fair-play de canciones (producto cerrado — ver `PRODUCT.md` §5):**
+  1. **Géneros lobby modelo A:** cada jugador marca 0–3 géneros (0 = De todo). Pool
+     prioriza intersección; si el pool queda chico (~15), rellena automático.
+  2. **Pick 1 de 3:** al inicio del turno hum, 3 cards (título · artista · género ·
+     dificultad). El hummer elige 1 antes del countdown.
+  3. **Skip "No la conozco":** 2 por jugador por partida; renueva 3 cards nuevas.
+  4. Guesser nunca ve el título por las cards; solo audio + 4 opciones al adivinar.
+- **Vergüenza al tararear.** Countdown 3-2-1 + "¡Dale! ¡No hay vergüenza!" / "no hace
+  falta cantar bien". Feedback de **nivel de mic** al grabar + estado claro de envío
+  (“Subiendo…” → “¡Enviado!”). Tensión de **una toma** (sin edición infinita); fair-play
+  de *canción* (1 de 3 + skip) cubre “no la conozco”.
+- **El guesser sin contexto se frustra.** Hint textual (`hint`) a los ~10s. **Re-listen**
+  del clip 1 vez/ronda (no es skip de canción ni re-grabación del hummer).
+- **Lobby interactivo:** logo respirando + carrusel + código + **chips de género**.
+- **Indicador de progreso:** 5 dots de ronda.
+- **Revancha con narrativa** + dato positivo al perdedor.
+- **Cambio de rol dramático:** slam/zoom + color (azul=hummer, naranja=guesser).
+- **Timer últimos 3s intenso:** barra roja, scale, haptics heartbeat.
 
 ## 15. Accesibilidad
 
@@ -301,12 +305,32 @@ Sin autenticación real, el MVP es vulnerable a abuso simple. Mitigaciones míni
 
 ## 16. Banco de canciones — Fase 1
 
-30 canciones curadas para público hispanohablante. Distribución: 8 reggaetón, 8 rock,
-3 cumbia, 7 pop latino, 2 balada, 2 clásico. Dificultad: 10 fáciles, 12 medias,
-8 difíciles.
+**Objetivo de catálogo:** suficiente variedad para fair-play (géneros + 1 de 3 + skips)
+sin agotar el pool en una tarde de rematches. MVP técnico actual: ~30 canciones.
+**Meta soft launch:** ampliar hacia 60–80 y rotación ops (+N/semana). Ver `PRODUCT.md`.
 
-Cada canción tiene `hint` textual obligatorio (se muestra al guesser a los 10s).
-No hay archivos de audio — el jugador tararea. Las canciones se eligen al azar sin
-repetir en una misma partida (5 rondas → 5 canciones diferentes).
+Distribución orientativa (ajustar al crecer): reggaetón, rock ES, cumbia, pop latino,
+baladas, clásicos. Mezcla de dificultades con **buenas fáciles** (si el pool filtrado
+queda sin fáciles, el fair-play falla).
 
-Estructura de datos: `{ id, title, artist, genre, difficulty, decade, hint }`
+- `hint` textual obligatorio (guesser ~10s).
+- No hay archivos de audio de la canción — el jugador tararea.
+- Anti-repeat en la misma partida; idealmente también en serie de rematches.
+- Pick: el server ofrece **3 candidatas** del pool filtrado por géneros de la sala;
+  el hummer elige 1 (no es “1 canción impuesta al azar” sin agencia).
+- Distractores del guess: preferir mismo género/década (“barrio” musical).
+
+Estructura: `{ id, title, artist, genre, difficulty, decade, hint }`
+(`hummerHint` opcional a futuro — solo visible al hummer, sin audio copyrighted).
+
+## 17. Próximo desarrollo (orden sugerido)
+
+Fuente de valor: `PRODUCT.md` §10. Orden práctico post-decisión clips:
+
+1. **`feature/voice-recording`** — pipeline clips: grabar → upload → playback; quitar
+   dependencia de juego de Agora; disclaimer; TTL/cleanup. Aparcar/borrar
+   `fix/agora-role-publish` (ya no es gate).
+2. **`feature/song-fair-play`** — géneros lobby (A) + pick 1 de 3 + skip 2×.
+3. Integrar clips + fair-play en loop síncrono en sala; test 2 devices.
+4. Pulido results / animaciones / report modal.
+5. Async + push + multi-duelo solo con decisión de persistencia en `DECISIONS.md`.

@@ -3,7 +3,7 @@
 Esto reemplaza la memoria que OpenCode no tiene entre sesiones. Se actualiza al final
 de cada sesión de trabajo significativa. Formato: fecha, decisión/estado, motivo.
 
-Al abrir una sesión nueva: leer este archivo + `AGENTS.md` antes de tocar código.
+Al abrir una sesión nueva: leer `PRODUCT.md` + `AGENTS.md` + este archivo antes de tocar código.
 
 ---
 
@@ -431,3 +431,146 @@ npm run test:all         # ambos
 **Docs actualizados:** `DECISIONS.md`, `GUIA_DE_ESTUDIO.md` (comandos + Vitest + CI).
 
 **Branch actual:** `feature/ci-github-actions` (mergear a `develop` al cerrar).
+
+---
+
+## 2026-07-30 — Fix Agora publish en cambio de rol (pendiente retest)
+
+**Branch:** `fix/agora-role-publish` (sale de `develop`).
+
+**Contexto device test:**
+- Partida 1v1 en 2 celulares físicos + backend local + Metro dev-client.
+- Resultado parcial: audio salía de **un** dispositivo, del otro no.
+- No se confirmó si era solo el hummer de ronda 1 o un celu concreto.
+
+**Causa probable (código):**
+- Join inicial setea `publishMicrophoneTrack` según rol.
+- En cambio de ronda, `updateSession` solo hacía `renewToken` + `setClientRole` + mute — **sin** `updateChannelMediaOptions`.
+- En Agora 4.x, sin eso el que entró como `subscriber` no publica mic al pasar a hummer → audio unidireccional.
+
+**Fix implementado** en `src/features/voice-stream/hooks/useAgora.ts`:
+- Helper `applyPublishState`: `updateChannelMediaOptions` con `token`, `clientRoleType`, `publishMicrophoneTrack`, `autoSubscribeAudio` + `setClientRole` + `enableLocalAudio` + `muteLocalAudioStream`.
+- Usado en `updateSession` (token nuevo por ronda) y `applyRole` (effect de rol).
+- `setDefaultAudioRouteToSpeakerphone(true)` (+ `setEnableSpeakerphone` si existe) en join.
+- `tsc --noEmit` OK. Sin commit aún al pausar sesión.
+
+**Pendiente al retomar (prioridad #1):**
+1. Retest 2 celus con este fix (reload Metro, sin rebuild EAS):
+   ```bash
+   npm run server
+   npx expo start --dev-client --lan
+   ```
+2. Checklist: ronda 1 A→B oye; ronda 2 B→A oye; mic concedido en ambos.
+3. Si OK: commit + merge `fix/agora-role-publish` → `develop`.
+4. Si sigue fallando: mirar logs Metro `[agora] updateChannelMediaOptions`, `onRemoteAudioStateChanged`, `onError`; permiso mic por celu.
+
+**Estado de fases:** sin cambio (gate 4+5 sigue abierto hasta retest).
+
+---
+
+## 2026-08-04 — Producto cerrado en docs (GDD) + brújula de desarrollo
+
+**Contexto:** sesión de negocio/producto (sin feature code). Se estructuró identidad,
+mercado, fair-play y roadmap antes de seguir desarrollo.
+
+### Docs
+
+| Archivo | Cambio |
+|---------|--------|
+| **`PRODUCT.md`** (nuevo) | GDD liviano: identidad, pilares, core loop, fair-play, mecánicas por capas, motion, monetización, criterio de features, roadmap, open questions |
+| **`AGENTS.md`** | Trío de memoria (PRODUCT + DECISIONS + AGENTS); fair-play en UX; banco/pick; arquitectura folders; stack actual vs norte; §17 orden de desarrollo |
+| **`DECISIONS.md`** | Esta entrada |
+
+### Decisiones de producto (fuente: `PRODUCT.md`)
+
+1. **Identidad:** duelo donde *tu voz es el challenge*. No Preguntados-con-mic, no
+   radio-quiz con masters. Aprendemos hábito LatAm de Preguntados sin copiar coronas/ruleta.
+2. **Fair-play de canciones (cerrado para implementar):**
+   - **Géneros lobby modelo A:** cada jugador marca 0–3 géneros (0 = De todo). Pool
+     prioriza intersección; si queda chico, rellena automático (~mín 15).
+   - **Pick 1 de 3** al inicio de cada turno hum (título · artista · género · dificultad).
+   - **Skip "No la conozco":** 2 por jugador por partida → renueva 3 cards.
+3. **Monetización:** ads solo en bordes post-validación del loop; IAP futuro = packs de
+   *metadatos/temática*, nunca audio copyrighted.
+4. **Banco:** rotación/expansión desde soft launch (meta ~60–80 + ops semanal), no
+   dejarlo para “fase 2 algún día”.
+5. **Roadmap en capas:** núcleo → fair-play → sesión densa → hábito async → multi-duelo
+   → share/rivalidad → monetización limpia. Ver `PRODUCT.md` §10.
+
+### Arquitectura de voz
+
+- **2026-08-04:** aún abierta (Agora en repo / clips como norte).
+- **2026-08-05:** **cerrada a clips** — ver entrada siguiente. Gate Agora aparcado.
+
+### Próximo desarrollo (actualizado 2026-08-05)
+
+1. `feature/voice-recording` — clips + deprecar Agora en el loop
+2. `feature/song-fair-play` — géneros A + pick 1 de 3 + skip 2×
+3. Integración + test 2 devices; ampliar banco en paralelo (ops)
+
+**Branch docs:** commits de documentación pueden ir en la rama actual o en
+`docs/product-gdd` → merge a `develop` según flujo del repo.
+
+---
+
+## 2026-08-05 — Arquitectura de voz: clips (depreca Agora/WebRTC)
+
+**Decisión cerrada:** el tarareo del MVP se hace con **grabación local de clip** +
+**upload a storage efímero** + **playback en el guesser**. **No** se usa transmisión
+en vivo WebRTC (Agora/LiveKit) como pipeline de juego.
+
+### Motivos
+
+1. **Costo e infra:** sin cargo por minuto de media server; storage/egress acotable con TTL.
+2. **Complejidad:** el gate Agora (audio unidireccional al cambiar de rol) deja de ser
+   bloqueante; no hay tokens PUB/SUB ni NAT P2P.
+3. **Producto:** habilita el norte async (“te toca”) sin rediseñar el medio de audio.
+4. **UX:** menos “escenario en vivo” frente a desconocidos; tensión se mantiene con
+   límite de tiempo (~20s) y una toma (sin edición infinita). Fair-play de *canción*
+   (1 de 3 + skip) cubre “no conozco el tema”.
+
+### Qué implica
+
+| Antes | Ahora |
+|-------|--------|
+| Agora P2P live | Grabar → subir → reproducir |
+| `voice-stream` / useAgora | `voice-recording` (nuevo) |
+| Gate `fix/agora-role-publish` | **Aparcado / no prioritario** — no invertir más |
+| Disclaimer “no grabamos” | Disclaimer **honesto**: sube para la ronda y se borra |
+| Mute = muteRemoteAudioStream | Mute/pausa = playback local del clip |
+
+### Reglas de producto/tech
+
+- **TTL corto:** borrar clip al fin de ronda o partida (no archivo permanente, no feed).
+- **Guesser:** puede **re-escuchar el clip 1×** por ronda (no es re-grabación del hummer).
+- **Hummer:** sin reintentos de edición infinita; countdown + una toma.
+- **Primer ship:** clips **síncronos en sala** (Socket.io como hoy). Async + DB + push =
+  decisión futura aparte.
+- **Live VIP (WebRTC) opcional:** solo con decisión nueva explícita; no es el default.
+
+### Pendiente al implementar (`feature/voice-recording`)
+
+1. Elegir lib de grabación/playback compatible con el RN/Expo del repo (expo-audio /
+   expo-av u otra estable).
+2. Elegir storage (Supabase / S3 / R2 / upload al backend en MVP chico) + signed URLs.
+3. Eventos socket: p.ej. `clip_ready` / `clip_url` por ronda; cleanup server-side.
+4. Quitar dependencia de juego de Agora (SDK, tokens, secrets EAS, código voice-stream).
+5. Tests: hum graba y guess reproduce en 2 devices; fallo de upload con reintento UX.
+6. Medir costo storage/egress a escala chica.
+
+### Docs actualizados esta decisión
+
+- `AGENTS.md` §3 stack, arquitectura, seguridad, UX, §17 orden dev
+- `PRODUCT.md` nota arquitectura + open questions + decisiones cerradas
+- `GUIA_DE_ESTUDIO.md` (audio = clips; Agora como legado histórico)
+- `DECISIONS.md` (esta entrada)
+
+### Orden de desarrollo inmediato
+
+1. `feature/voice-recording` — pipeline clips + deprecar Agora en el loop
+2. `feature/song-fair-play` — géneros A + 1 de 3 + skip 2×
+3. Integración + test 2 devices
+4. Async solo con decisión de persistencia nueva
+
+**Nota:** entradas anteriores de este archivo que asumen Agora como stack vigente
+quedan como **historial**. La fuente de verdad actual es esta entrada + `AGENTS.md`.
