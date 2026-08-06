@@ -4,18 +4,25 @@ import { RoomManager } from "./rooms/RoomManager.js";
 import { registerGameHandlers, handleGameDisconnect } from "./game-logic/socket-handlers.js";
 import { registerRoomHandlers } from "./rooms/socket-handlers.js";
 import { rateLimiter } from "./security/rateLimiter.js";
+import { handleClipHttp } from "./storage/clipRoutes.js";
+import { purgeExpiredClips } from "./storage/clipStore.js";
 
 const PORT = Number(process.env.PORT) || 3001;
 
-const httpServer = createServer((req, res) => {
+const httpServer = createServer(async (req, res) => {
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "ok" }));
     return;
   }
+
+  if (await handleClipHttp(req, res)) return;
+
   res.writeHead(404);
   res.end();
 });
+
+setInterval(() => purgeExpiredClips(), 15 * 60 * 1000);
 
 const io = new Server(httpServer, {
   cors: {

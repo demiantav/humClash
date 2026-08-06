@@ -9,6 +9,7 @@ import {
 import { registerRoomHandlers } from "../../rooms/socket-handlers.js";
 import { rateLimiter, clearRateLimitState } from "../../security/rateLimiter.js";
 import { clearReports } from "../../moderation/ReportHandler.js";
+import { handleClipHttp } from "../../storage/clipRoutes.js";
 
 export interface TestServer {
   io: Server;
@@ -23,7 +24,8 @@ export async function startTestServer(): Promise<TestServer> {
   clearRateLimitState();
   clearReports();
 
-  const httpServer = createServer((_req, res) => {
+  const httpServer = createServer(async (req, res) => {
+    if (await handleClipHttp(req, res)) return;
     res.writeHead(404);
     res.end();
   });

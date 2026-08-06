@@ -10,7 +10,8 @@
     "scheme": "humclash",
     "plugins": [
       "expo-router",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-audio"
     ],
     "ios": {
       "newArchEnabled": true,

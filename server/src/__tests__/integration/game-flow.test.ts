@@ -74,20 +74,33 @@ describe("integration: game flow", () => {
     expect(guesser.timeLimit).toBe(15);
   });
 
-  it("start_humming → humming_started + timer_sync", async () => {
-    // Re-fetch roles from latest state by playing from stored handlers is hard;
-    // listen for next cycle by issuing humming on both — only hummer's session matters.
-    // We need current roles: emit start_humming from both; only session reacts once.
-    const hummingP = Promise.race([
-      waitFor(p1, "humming_started", 3000),
-      waitFor(p2, "humming_started", 3000),
+  it("clip_uploaded → clip_ready + timer_sync", async () => {
+    const uploadRes = await fetch(`${server.url}/clips`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomCode,
+        mimeType: "audio/m4a",
+        dataBase64: Buffer.from("fake-audio-bytes").toString("base64"),
+      }),
+    });
+    expect(uploadRes.status).toBe(201);
+    const { clipId, clipUrl } = (await uploadRes.json()) as {
+      clipId: string;
+      clipUrl: string;
+    };
+
+    const readyP = Promise.race([
+      waitFor(p1, "clip_ready", 3000),
+      waitFor(p2, "clip_ready", 3000),
     ]);
 
-    p1.emit("start_humming", { roomCode });
-    p2.emit("start_humming", { roomCode });
+    p1.emit("clip_uploaded", { roomCode, clipId, clipUrl });
+    p2.emit("clip_uploaded", { roomCode, clipId, clipUrl });
 
-    const humming = await hummingP;
-    expect(humming.message.length).toBeGreaterThan(0);
+    const ready = await readyP;
+    expect(ready.clipId).toBe(clipId);
+    expect(ready.clipUrl).toContain("/clips/");
 
     const sync = await Promise.race([
       waitFor(p1, "timer_sync", 3000),
@@ -122,14 +135,30 @@ describe("integration: game flow", () => {
 
   it("completes remaining rounds → game_over with 5 rounds", async () => {
     const autoPlay = (socket: Socket) => {
-      socket.on("new_round", (d: any) => {
+      socket.on("new_round", async (d: any) => {
         if (d.yourRole === "hummer") {
-          setTimeout(() => socket.emit("start_humming", { roomCode }), 50);
+          setTimeout(async () => {
+            const res = await fetch(`${server.url}/clips`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                roomCode,
+                mimeType: "audio/m4a",
+                dataBase64: Buffer.from(`round-${d.roundNumber}`).toString("base64"),
+              }),
+            });
+            const body = (await res.json()) as { clipId: string; clipUrl: string };
+            socket.emit("clip_uploaded", {
+              roomCode,
+              clipId: body.clipId,
+              clipUrl: body.clipUrl,
+            });
+          }, 50);
         }
         if (d.yourRole === "guesser" && d.options?.length) {
           setTimeout(
             () => socket.emit("submit_guess", { roomCode, songId: d.options[0].id }),
-            150,
+            200,
           );
         }
       });

@@ -2,17 +2,12 @@ import { GamePhase, RoundResult, ScoreEntry } from "./types.js";
 import { pickRoundSongs } from "./SongBank.js";
 import { calculateScore, computeFinalScores } from "./Scoring.js";
 import { TurnManager } from "./TurnManager.js";
+import { deleteClipsForRoom, getClip } from "../storage/clipStore.js";
 
 interface PlayerInfo {
   id: string;
   nickname: string;
 }
-
-type TokenGenerator = (
-  channelName: string,
-  uid: number,
-  role: "publisher" | "subscriber",
-) => { token: string; appId: string };
 
 export class GameSession {
   roomCode: string;
@@ -30,7 +25,9 @@ export class GameSession {
   private guessPhaseStarted: boolean = false;
   private guessPhaseStartTime: number = 0;
   private bothRequestedRematch: Set<string> = new Set();
-  private generateToken: TokenGenerator;
+  private currentClipId: string | null = null;
+  private currentClipUrl: string | null = null;
+  private humTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     roomCode: string,
@@ -38,7 +35,6 @@ export class GameSession {
     turnManager: TurnManager,
     onEmit: (event: string, data: any) => void,
     onEmitTo: (playerId: string, event: string, data: any) => void,
-    generateToken: TokenGenerator,
   ) {
     this.roomCode = roomCode;
     this.players_ = players;
@@ -52,7 +48,6 @@ export class GameSession {
     this.turnManager = turnManager;
     this.onEmit = onEmit;
     this.onEmitTo = onEmitTo;
-    this.generateToken = generateToken;
   }
 
   get players(): PlayerInfo[] {
@@ -81,11 +76,21 @@ export class GameSession {
     this.onEmitTo(playerId, event, { ...data, roomCode: this.roomCode });
   }
 
+  private clearHumTimeout() {
+    if (this.humTimeoutHandle) {
+      clearTimeout(this.humTimeoutHandle);
+      this.humTimeoutHandle = null;
+    }
+  }
+
   startCountdown(): void {
     if (this.phase !== "lobby" && this.phase !== "game_over" && this.phase !== "round_result") return;
     this.phase = "countdown";
     this.bothRequestedRematch.clear();
     this.guessPhaseStarted = false;
+    this.currentClipId = null;
+    this.currentClipUrl = null;
+    this.clearHumTimeout();
 
     this.emitAll("game_starting", { round: 1, totalRounds: this.totalRounds });
 
@@ -104,13 +109,15 @@ export class GameSession {
     this.currentRound++;
     this.phase = "round_active";
     this.guessPhaseStarted = false;
+    this.currentClipId = null;
+    this.currentClipUrl = null;
+    this.clearHumTimeout();
 
     const usedSongIds = this.rounds.map((r) => r.song.id);
     const { correct, distractors } = pickRoundSongs(usedSongIds);
 
     const options = [...distractors, correct].sort(() => Math.random() - 0.5);
-    this.timeLimit = this.guessTimeLimit;
-    this.guessPhaseStartTime = Date.now();
+    this.timeLimit = this.humTimeLimit;
 
     const round: RoundResult = {
       roundNumber: this.currentRound,
@@ -127,9 +134,6 @@ export class GameSession {
     const hummerId = this.getHummerId();
     const guesserId = this.getGuesserId();
 
-    const hummerIndex = (this.currentRound - 1) % 2;
-    const guesserIndex = 1 - hummerIndex;
-
     this.emitTo(hummerId, "new_round", {
       roundNumber: this.currentRound,
       song: correct,
@@ -138,6 +142,7 @@ export class GameSession {
       timeLimit: this.humTimeLimit,
       totalRounds: this.totalRounds,
       opponentNickname: this.players_.find((p) => p.id === guesserId)?.nickname,
+      phase: "record",
     });
 
     this.emitTo(guesserId, "new_round", {
@@ -148,27 +153,52 @@ export class GameSession {
       timeLimit: this.guessTimeLimit,
       totalRounds: this.totalRounds,
       opponentNickname: this.players_.find((p) => p.id === hummerId)?.nickname,
+      phase: "wait_clip",
     });
 
-    const hummerUid = hummerIndex + 1;
-    const guesserUid = guesserIndex + 1;
+    // Hum phase timer: if no clip arrives, round times out with 0 pts
+    this.humTimeoutHandle = setTimeout(() => {
+      if (!this.guessPhaseStarted && this.phase === "round_active") {
+        this.handleTimeout();
+      }
+    }, (this.humTimeLimit + 8) * 1000);
+  }
 
-    const hummerToken = this.generateToken(this.roomCode, hummerUid, "publisher");
-    const guesserToken = this.generateToken(this.roomCode, guesserUid, "subscriber");
+  /**
+   * Hummer finished upload. clipId must exist in clipStore for this room.
+   * clipUrl is the public URL the guesser will play.
+   */
+  onClipUploaded(playerId: string, clipId: string, clipUrl: string): boolean {
+    if (this.phase !== "round_active" || this.guessPhaseStarted) return false;
+    if (playerId !== this.getHummerId()) return false;
 
-    this.emitTo(hummerId, "agora_token", { token: hummerToken.token, channel: this.roomCode, uid: hummerUid, role: "publisher" });
-    this.emitTo(guesserId, "agora_token", { token: guesserToken.token, channel: this.roomCode, uid: guesserUid, role: "subscriber" });
+    const clip = getClip(clipId);
+    if (!clip || clip.roomCode !== this.roomCode) return false;
 
-    console.log(`[agora] Round ${this.currentRound} — tokens emitted: hummer=uid${hummerUid}(pub), guesser=uid${guesserUid}(sub) — ch=${this.roomCode}`);
+    this.currentClipId = clipId;
+    this.currentClipUrl = clipUrl;
+    this.clearHumTimeout();
+    this.startGuessing();
+    return true;
   }
 
   startGuessing(): void {
     if (this.phase !== "round_active" || this.guessPhaseStarted) return;
     this.guessPhaseStarted = true;
     this.guessPhaseStartTime = Date.now();
+    this.timeLimit = this.guessTimeLimit;
 
+    this.emitTo(this.getGuesserId(), "clip_ready", {
+      clipId: this.currentClipId,
+      clipUrl: this.currentClipUrl,
+      message: "¡Escuchá el tarareo y adiviná!",
+    });
+
+    // Backward-compatible alias for older clients/tests
     this.emitTo(this.getGuesserId(), "humming_started", {
-      message: "Tu rival empezó a tararear. ¡Escuchá bien!",
+      message: "¡Escuchá el tarareo y adiviná!",
+      clipId: this.currentClipId,
+      clipUrl: this.currentClipUrl,
     });
 
     let elapsed = 0;
@@ -181,6 +211,7 @@ export class GameSession {
           secondsElapsed: elapsed,
           timeLimit,
           serverTimestamp: Date.now(),
+          phase: "guess",
         });
       },
       () => {
@@ -190,23 +221,15 @@ export class GameSession {
     );
   }
 
-  requestRehum(requesterId: string): void {
-    if (this.phase !== "round_active") return;
-    const hummerId = this.getHummerId();
-    if (requesterId !== this.getGuesserId()) return;
-
-    this.emitTo(hummerId, "rehum_requested", {
-      message: "Tu rival no entiende. ¡Tarareá de nuevo!",
-    });
-  }
-
   handleGuess(songId: string, guesserId: string): RoundResult | null {
     if (this.phase !== "round_active") return null;
 
     const currentRound = this.getCurrentRound();
     if (!currentRound || currentRound.guess || guesserId !== currentRound.guesserId) return null;
+    if (!this.guessPhaseStarted) return null;
 
     this.turnManager.clearTimer(this.roomCode);
+    this.clearHumTimeout();
 
     const elapsed = Math.round((Date.now() - this.guessPhaseStartTime) / 1000);
     const timeTaken = Math.max(0, Math.min(elapsed, this.guessTimeLimit));
@@ -219,6 +242,9 @@ export class GameSession {
     currentRound.score = score;
 
     this.phase = "round_result";
+    if (this.currentClipId) {
+      // keep clip until end of round display; delete on advance
+    }
 
     const scores = computeFinalScores(
       this.rounds,
@@ -245,12 +271,13 @@ export class GameSession {
     if (!currentRound) return;
 
     this.turnManager.clearTimer(this.roomCode);
+    this.clearHumTimeout();
 
     if (currentRound.guess) return;
 
     currentRound.guess = null;
     currentRound.correct = false;
-    currentRound.timeTaken = this.guessTimeLimit;
+    currentRound.timeTaken = this.guessPhaseStarted ? this.guessTimeLimit : this.humTimeLimit;
     currentRound.score = 0;
 
     this.phase = "round_result";
@@ -265,7 +292,7 @@ export class GameSession {
       correct: false,
       song: currentRound.song,
       score: 0,
-      timeTaken: this.guessTimeLimit,
+      timeTaken: currentRound.timeTaken,
       timeout: true,
       scores,
     });
@@ -273,6 +300,9 @@ export class GameSession {
 
   advanceRound(): void {
     if (this.phase !== "round_result") return;
+
+    this.currentClipId = null;
+    this.currentClipUrl = null;
 
     if (this.currentRound >= this.totalRounds) {
       this.finishGame();
@@ -284,6 +314,8 @@ export class GameSession {
   finishGame(): void {
     this.phase = "game_over";
     this.turnManager.clearTimer(this.roomCode);
+    this.clearHumTimeout();
+    deleteClipsForRoom(this.roomCode);
 
     const scores = computeFinalScores(
       this.rounds,
@@ -336,8 +368,12 @@ export class GameSession {
     this.rounds = [];
     this.timeLimit = 0;
     this.guessPhaseStarted = false;
+    this.currentClipId = null;
+    this.currentClipUrl = null;
     this.bothRequestedRematch.clear();
     this.turnManager.clearTimer(this.roomCode);
+    this.clearHumTimeout();
+    deleteClipsForRoom(this.roomCode);
 
     this.emitAll("rematch_accepted", {});
 
@@ -354,5 +390,7 @@ export class GameSession {
 
   dispose(): void {
     this.turnManager.clearTimer(this.roomCode);
+    this.clearHumTimeout();
+    deleteClipsForRoom(this.roomCode);
   }
 }

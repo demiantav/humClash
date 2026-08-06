@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { socket } from "../../../shared/lib/socket-client";
 import { useGameStore } from "../../../store/useGameStore";
-import { Song, ScoreEntry } from "../../../shared/types";
 import {
   NewRoundData,
   TimerSyncData,
@@ -42,10 +41,11 @@ export function useGameRound(roomCode: string) {
   const [roundResult, setRoundResult] = useState<RoundResultData | null>(null);
   const [lastGuessCorrect, setLastGuessCorrect] = useState<boolean | null>(null);
   const [hintVisible, setHintVisible] = useState(false);
-  const [rehumAvailable, setRehumAvailable] = useState(true);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [countdownValue, setCountdownValue] = useState<number | null>(null);
-  const [hummingStarted, setHummingStarted] = useState(false);
+  const [clipUrl, setClipUrl] = useState<string | null>(null);
+  const [clipId, setClipId] = useState<string | null>(null);
+  const [clipReady, setClipReady] = useState(false);
   const timeLimitRef = useRef(0);
 
   useEffect(() => {
@@ -58,8 +58,17 @@ export function useGameRound(roomCode: string) {
       setCountdownValue(data.count);
     };
 
-    const onHummingStarted = () => {
-      setHummingStarted(true);
+    const onClipReady = (data: { clipUrl?: string; clipId?: string }) => {
+      if (data.clipUrl) setClipUrl(data.clipUrl);
+      if (data.clipId) setClipId(data.clipId);
+      setClipReady(true);
+    };
+
+    const onHummingStarted = (data: { clipUrl?: string; clipId?: string }) => {
+      // alias for clip_ready
+      if (data.clipUrl) setClipUrl(data.clipUrl);
+      if (data.clipId) setClipId(data.clipId);
+      setClipReady(true);
     };
 
     const onNewRound = (data: NewRoundData) => {
@@ -74,16 +83,18 @@ export function useGameRound(roomCode: string) {
       setRoundResult(null);
       setLastGuessCorrect(null);
       setHintVisible(false);
-      setRehumAvailable(true);
       setHasSubmitted(false);
       setCountdownValue(null);
-      setHummingStarted(false);
+      setClipUrl(null);
+      setClipId(null);
+      setClipReady(false);
       timeLimitRef.current = data.timeLimit;
     };
 
     const onTimerSync = (data: TimerSyncData) => {
       timeLimitRef.current = data.timeLimit;
-      const elapsed = data.secondsElapsed + (Date.now() - data.serverTimestamp) / 1000;
+      const elapsed =
+        data.secondsElapsed + (Date.now() - data.serverTimestamp) / 1000;
       const remaining = Math.max(0, data.timeLimit - elapsed);
       setTimeLeft(Math.ceil(remaining));
       setTimeLimit(data.timeLimit);
@@ -121,30 +132,26 @@ export function useGameRound(roomCode: string) {
       useGameStore.getState().setRematchRequestedByRival(false);
     };
 
-    const onRehumRequested = (data: { message: string }) => {
-      setRehumAvailable(false);
-    };
-
     socket.on("game_starting", onGameStarting);
     socket.on("countdown_tick", onCountdownTick);
+    socket.on("clip_ready", onClipReady);
     socket.on("humming_started", onHummingStarted);
     socket.on("new_round", onNewRound);
     socket.on("timer_sync", onTimerSync);
     socket.on("round_result", onRoundResult);
     socket.on("game_over", onGameOver);
-    socket.on("rehum_requested", onRehumRequested);
     socket.on("rematch_requested", onRematchRequested);
     socket.on("rematch_accepted", onRematchAccepted);
 
     return () => {
       socket.off("game_starting", onGameStarting);
       socket.off("countdown_tick", onCountdownTick);
+      socket.off("clip_ready", onClipReady);
       socket.off("humming_started", onHummingStarted);
       socket.off("new_round", onNewRound);
       socket.off("timer_sync", onTimerSync);
       socket.off("round_result", onRoundResult);
       socket.off("game_over", onGameOver);
-      socket.off("rehum_requested", onRehumRequested);
       socket.off("rematch_requested", onRematchRequested);
       socket.off("rematch_accepted", onRematchAccepted);
     };
@@ -152,22 +159,12 @@ export function useGameRound(roomCode: string) {
 
   const submitGuess = useCallback(
     (songId: string) => {
-      if (hasSubmitted || myRole !== "guesser") return;
+      if (hasSubmitted || myRole !== "guesser" || !clipReady) return;
       setHasSubmitted(true);
       socket.emit("submit_guess", { roomCode, songId });
     },
-    [roomCode, hasSubmitted, myRole],
+    [roomCode, hasSubmitted, myRole, clipReady],
   );
-
-  const startHumming = useCallback(() => {
-    socket.emit("start_humming", { roomCode });
-  }, [roomCode]);
-
-  const requestRehum = useCallback(() => {
-    if (!rehumAvailable) return;
-    socket.emit("request_rehum", { roomCode });
-    setRehumAvailable(false);
-  }, [roomCode, rehumAvailable]);
 
   const requestRematch = useCallback(() => {
     socket.emit("request_rematch", { roomCode });
@@ -195,13 +192,12 @@ export function useGameRound(roomCode: string) {
     gameOver,
     lastGuessCorrect,
     hintVisible,
-    rehumAvailable,
     hasSubmitted,
     countdownValue,
-    hummingStarted,
+    clipUrl,
+    clipId,
+    clipReady,
     submitGuess,
-    startHumming,
-    requestRehum,
     requestRematch,
     leaveGame,
     reset,
