@@ -168,6 +168,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(124, 77, 255, 0.3)",
     marginTop: 12,
+    marginHorizontal: 4,
   },
   roundLabel: {
     color: "#A78BFA",
@@ -179,21 +180,26 @@ const styles = StyleSheet.create({
   },
   songTitle: {
     color: "#FFF",
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "900",
     textAlign: "center",
     marginBottom: 4,
+    paddingHorizontal: 4,
   },
   songArtist: {
     color: "#A78BFA",
-    fontSize: 16,
+    fontSize: 15,
     marginBottom: 8,
+    textAlign: "center",
+    paddingHorizontal: 4,
   },
   songHint: {
     color: "#FFD700",
     fontSize: 13,
     fontStyle: "italic",
     opacity: 0.8,
+    textAlign: "center",
+    paddingHorizontal: 4,
   },
   center: {
     flex: 1,
