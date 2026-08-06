@@ -65,10 +65,10 @@ export function OptionButton({
       onPressOut={handlePressOut}
       disabled={disabled}
     >
-      <Text style={styles.title} numberOfLines={1}>
+      <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
         {title}
       </Text>
-      <Text style={styles.artist} numberOfLines={1}>
+      <Text style={styles.artist} numberOfLines={2} ellipsizeMode="tail">
         {artist}
       </Text>
     </AnimatedPressable>

@@ -8,10 +8,7 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
-  withSpring,
-  withDelay,
   Easing,
-  runOnJS,
 } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import * as Sharing from "expo-sharing";
@@ -92,54 +89,10 @@ function InstructionCarousel() {
   );
 }
 
-function CountdownOverlay({ onFinish }: { onFinish: () => void }) {
-  const count = useSharedValue(3);
-  const scale = useSharedValue(1);
-  const opacity = useSharedValue(1);
-
-  useEffect(() => {
-    const tick = () => {
-      if (count.value <= 0) {
-        runOnJS(onFinish)();
-        return;
-      }
-      scale.value = 0.3;
-      scale.value = withSpring(1, { stiffness: 300, damping: 10 });
-      count.value = count.value - 1;
-    };
-
-    tick();
-    const i1 = setTimeout(tick, 800);
-    const i2 = setTimeout(tick, 1600);
-    const i3 = setTimeout(tick, 2400);
-
-    return () => {
-      clearTimeout(i1);
-      clearTimeout(i2);
-      clearTimeout(i3);
-    };
-  }, []);
-
-  const numberStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
-  }));
-
-  return (
-    <View style={styles.countdownOverlay}>
-      <Text style={styles.countdownLabel}>¡Preparate!</Text>
-      <Animated.Text style={[styles.countdownNumber, numberStyle]}>
-        {Math.max(0, count.value)}
-      </Animated.Text>
-    </View>
-  );
-}
-
 export default function LobbyScreen() {
   const { roomCode, nickname } = useLocalSearchParams<{ roomCode: string; nickname: string }>();
   const [players, setPlayers] = useState<Player[]>([{ id: "self", nickname: nickname ?? "", isReady: false, socketId: "" }]);
   const [isReady, setIsReady] = useState(false);
-  const [showCountdown, setShowCountdown] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const navigateToGame = useCallback(() => {
@@ -154,7 +107,7 @@ export default function LobbyScreen() {
       setPlayers(room.players);
     };
     const onGameStarting = () => {
-      setShowCountdown(true);
+      navigateToGame();
     };
 
     socket.on("room_joined", onRoomJoined);
@@ -166,7 +119,7 @@ export default function LobbyScreen() {
       socket.off("player_ready_update", onPlayerReady);
       socket.off("game_starting", onGameStarting);
     };
-  }, []);
+  }, [navigateToGame]);
 
   const handleReady = () => {
     setIsReady(!isReady);
@@ -186,13 +139,6 @@ export default function LobbyScreen() {
     } as any);
   };
 
-  if (showCountdown) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <CountdownOverlay onFinish={navigateToGame} />
-      </SafeAreaView>
-    );
-  }
 
   const waiting = players.length < 2;
 
@@ -367,22 +313,4 @@ const styles = StyleSheet.create({
   },
   btnText: { color: "#FFF", fontSize: 18, fontWeight: "700" },
   btnTextSecondary: { color: "#7C4DFF", fontSize: 14, fontWeight: "700" },
-  countdownOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  countdownLabel: {
-    color: "#A78BFA",
-    fontSize: 22,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  countdownNumber: {
-    fontSize: 120,
-    fontWeight: "900",
-    color: "#FFD700",
-    textShadowColor: "rgba(255,215,0,0.4)",
-    textShadowRadius: 30,
-  },
 });

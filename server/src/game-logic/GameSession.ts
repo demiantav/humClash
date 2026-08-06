@@ -112,6 +112,7 @@ export class GameSession {
     this.currentClipId = null;
     this.currentClipUrl = null;
     this.clearHumTimeout();
+    this.turnManager.clearTimer(this.roomCode);
 
     const usedSongIds = this.rounds.map((r) => r.song.id);
     const { correct, distractors } = pickRoundSongs(usedSongIds);
@@ -156,7 +157,22 @@ export class GameSession {
       phase: "wait_clip",
     });
 
-    // Hum phase timer: if no clip arrives, round times out with 0 pts
+    this.turnManager.startTimer(
+      this.roomCode,
+      (elapsed) => {
+        this.emitAll("timer_sync", {
+          secondsElapsed: elapsed,
+          timeLimit: this.humTimeLimit,
+          serverTimestamp: Date.now(),
+          phase: "hum",
+        });
+      },
+      () => {
+        this.handleTimeout();
+      },
+      this.humTimeLimit + 8,
+    );
+
     this.humTimeoutHandle = setTimeout(() => {
       if (!this.guessPhaseStarted && this.phase === "round_active") {
         this.handleTimeout();
@@ -178,6 +194,7 @@ export class GameSession {
     this.currentClipId = clipId;
     this.currentClipUrl = clipUrl;
     this.clearHumTimeout();
+    this.turnManager.clearTimer(this.roomCode);
     this.startGuessing();
     return true;
   }
