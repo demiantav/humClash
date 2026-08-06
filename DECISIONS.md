@@ -577,7 +577,23 @@ quedan como **historial**. La fuente de verdad actual es esta entrada + `AGENTS.
 
 ---
 
-## 2026-08-05 — Implementación inicial `feature/voice-recording`
+## 2026-08-06 — Fixes: device bugs post-voice-recording
+
+**Ramas:** `fix/timer-textos-countdown` + `fix/permiso-mic-round-stuck` → develop.
+
+**Bugs encontrados y resueltos en device (2 celus):**
+
+1. **Textos cortados** en OptionButton/HummerView: `numberOfLines` 1→2 + padding.
+2. **Permiso de micrófono** se pedía al apretar grabar → ahora al asignarse rol hummer (`useEffect`).
+3. **Timer congelado durante hum:** `startRound()` no emitía `timer_sync` en fase de grabación → agregado `turnManager.startTimer()` con phase `hum`.
+4. **Countdown 3-2-1 duplicado:** lobby tenía countdown local + server enviaba ticks → eliminado local, navega directo a `/game`.
+5. **Partida trabada en timeout:** `handleTimeout()` no programaba `advanceRound()` → la partida quedaba congelada si expiraba el timer. Ahora agenda avance en 3s.
+
+**Refactor:** eliminado `humTimeoutHandle` (setTimeout duplicado al timer del `TurnManager`).
+
+**Tests:** 72 pasan (11 client + 61 server). Lint limpio.
+
+**Pendiente:** rebuild Dev Client + retest en 2 celus con los 5 fixes.
 
 **Branch:** `feature/voice-recording` (desde `develop` post-docs).
 
