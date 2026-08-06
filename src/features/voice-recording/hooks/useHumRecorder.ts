@@ -31,6 +31,8 @@ export function useHumRecorder(roomCode: string, enabled: boolean) {
   const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const finishingRef = useRef(false);
 
+  const [permissionGranted, setPermissionGranted] = useState(false);
+
   useEffect(() => {
     return () => {
       if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
@@ -43,7 +45,28 @@ export function useHumRecorder(roomCode: string, enabled: boolean) {
       setError(null);
       setCountdown(0);
       finishingRef.current = false;
+      return;
     }
+
+    void (async () => {
+      try {
+        const perm = await requestRecordingPermissionsAsync();
+        if (!perm.granted) {
+          setError("Necesitamos el micrófono para tararear");
+          setPhase("error");
+          setPermissionGranted(false);
+          return;
+        }
+        setPermissionGranted(true);
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+        });
+      } catch (e: any) {
+        setError(e?.message || "mic_permission_failed");
+        setPhase("error");
+      }
+    })();
   }, [enabled]);
 
   const clearMaxTimer = () => {
@@ -77,25 +100,13 @@ export function useHumRecorder(roomCode: string, enabled: boolean) {
   }, [recorder, roomCode]);
 
   const startTake = useCallback(async () => {
-    if (!enabled || phase === "recording" || phase === "uploading" || phase === "sent") {
+    if (!enabled || !permissionGranted || phase === "recording" || phase === "uploading" || phase === "sent") {
       return;
     }
     setError(null);
     finishingRef.current = false;
 
     try {
-      const perm = await requestRecordingPermissionsAsync();
-      if (!perm.granted) {
-        setError("Necesitamos el micrófono para tararear");
-        setPhase("error");
-        return;
-      }
-
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-      });
-
       setPhase("countdown");
       for (let c = 3; c >= 1; c--) {
         setCountdown(c);
